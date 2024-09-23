@@ -1,0 +1,19 @@
+apiVersion: coroot.com/v1
+kind: Coroot
+metadata:
+  name: coroot
+  namespace: coroot
+spec:
+  communityEdition:
+#  enterpriseEdition:
+#    licenseKey:
+#  agentsOnly:
+#    corootUrl:
+  nodeAgent:
+  clusterAgent:
+  prometheus:
+  clickhouse:
+    shards: 1
+    replicas: 1
+    storage:
+      size: 10Gi
