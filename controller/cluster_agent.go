@@ -89,9 +89,18 @@ func (r *CorootReconciler) clusterAgentDeployment(cr *corootv1.Coroot) *appsv1.D
 	if cr.Spec.AgentsOnly != nil {
 		corootUrl = cr.Spec.AgentsOnly.CorootURL
 	}
-	scrapeInterval := cr.Spec.MetricRefreshInterval.Duration.String()
-	if cr.Spec.MetricRefreshInterval.Duration == 0 {
+	scrapeInterval := cr.Spec.MetricsRefreshInterval.Duration.String()
+	if cr.Spec.MetricsRefreshInterval.Duration == 0 {
 		scrapeInterval = corootv1.DefaultMetricRefreshInterval
+	}
+	env := []corev1.EnvVar{
+		{Name: "COROOT_URL", Value: corootUrl},
+		{Name: "API_KEY", Value: cr.Spec.ApiKey},
+		{Name: "METRICS_SCRAPE_INTERVAL", Value: scrapeInterval},
+		{Name: "KUBE_STATE_METRICS_ADDRESS", Value: "127.0.0.1:10302"},
+	}
+	for _, e := range cr.Spec.ClusterAgent.Env {
+		env = append(env, e)
 	}
 	d.Spec = appsv1.DeploymentSpec{
 		Selector: &metav1.LabelSelector{
@@ -117,12 +126,7 @@ func (r *CorootReconciler) clusterAgentDeployment(cr *corootv1.Coroot) *appsv1.D
 						VolumeMounts: []corev1.VolumeMount{
 							{Name: "tmp", MountPath: "/tmp"},
 						},
-						Env: []corev1.EnvVar{
-							{Name: "COROOT_URL", Value: corootUrl},
-							{Name: "API_KEY", Value: cr.Spec.ApiKey},
-							{Name: "METRICS_SCRAPE_INTERVAL", Value: scrapeInterval},
-							{Name: "KUBE_STATE_METRICS_ADDRESS", Value: "127.0.0.1:10302"},
-						},
+						Env: env,
 					},
 					{
 						Image: "registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.13.0",

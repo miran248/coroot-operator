@@ -52,8 +52,8 @@ func (r *CorootReconciler) corootDeployment(cr *corootv1.Coroot) *appsv1.Deploym
 		},
 	}
 
-	refreshInterval := cr.Spec.MetricRefreshInterval.Duration.String()
-	if cr.Spec.MetricRefreshInterval.Duration == 0 {
+	refreshInterval := cr.Spec.MetricsRefreshInterval.Duration.String()
+	if cr.Spec.MetricsRefreshInterval.Duration == 0 {
 		refreshInterval = corootv1.DefaultMetricRefreshInterval
 	}
 
@@ -63,23 +63,17 @@ func (r *CorootReconciler) corootDeployment(cr *corootv1.Coroot) *appsv1.Deploym
 		{Name: "DO_NOT_CHECK_FOR_UPDATES"},
 		{Name: "INSTALLATION_TYPE", Value: "k8s-operator"},
 	}
-	if cr.Spec.UrlBasePath != "" {
-		env = append(env, corev1.EnvVar{Name: "URL_BASE_PATH", Value: cr.Spec.UrlBasePath})
-	}
-	if cr.Spec.PgConnectionString != "" {
-		env = append(env, corev1.EnvVar{Name: "PG_CONNECTION_STRING", Value: cr.Spec.PgConnectionString})
-	}
 	if cr.Spec.CacheTTL.Duration > 0 {
 		env = append(env, corev1.EnvVar{Name: "CACHE_TTL", Value: cr.Spec.CacheTTL.Duration.String()})
-	}
-	if cr.Spec.DisableUsageStatistics {
-		env = append(env, corev1.EnvVar{Name: "DISABLE_USAGE_STATISTICS"})
 	}
 	if cr.Spec.AuthAnonymousRole != "" {
 		env = append(env, corev1.EnvVar{Name: "AUTH_ANONYMOUS_ROLE", Value: cr.Spec.AuthAnonymousRole})
 	}
 	if cr.Spec.AuthBootstrapAdminPassword != "" {
 		env = append(env, corev1.EnvVar{Name: "AUTH_BOOTSTRAP_ADMIN_PASSWORD", Value: cr.Spec.AuthBootstrapAdminPassword})
+	}
+	for _, e := range cr.Spec.Env {
+		env = append(env, e)
 	}
 
 	var image string

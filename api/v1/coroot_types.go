@@ -44,6 +44,7 @@ type NodeAgentSpec struct {
 	UpdateStrategy    appsv1.DaemonSetUpdateStrategy `json:"update_strategy,omitempty"`
 	Affinity          *corev1.Affinity               `json:"affinity,omitempty"`
 	Resources         corev1.ResourceRequirements    `json:"resources,omitempty"`
+	Env               []corev1.EnvVar                `json:"env,omitempty"`
 }
 
 type ClusterAgentSpec struct {
@@ -51,6 +52,7 @@ type ClusterAgentSpec struct {
 
 	Affinity  *corev1.Affinity            `json:"affinity,omitempty"`
 	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
+	Env       []corev1.EnvVar             `json:"env,omitempty"`
 }
 
 type PrometheusSpec struct {
@@ -84,20 +86,16 @@ type ExternalClickhouseSpec struct {
 }
 
 type CorootSpec struct {
-	ApiKey                string          `json:"apiKey,omitempty"`
-	MetricRefreshInterval metav1.Duration `json:"metricRefreshInterval,omitempty"`
+	ApiKey                     string          `json:"apiKey,omitempty"`
+	MetricsRefreshInterval     metav1.Duration `json:"metricsRefreshInterval,omitempty"`
+	CacheTTL                   metav1.Duration `json:"cacheTTL,omitempty"`
+	AuthAnonymousRole          string          `json:"authAnonymousRole,omitempty"`
+	AuthBootstrapAdminPassword string          `json:"authBootstrapAdminPassword,omitempty"`
+	Env                        []corev1.EnvVar `json:"env,omitempty"`
 
 	CommunityEdition  CommunityEditionSpec   `json:"communityEdition,omitempty"`
 	EnterpriseEdition *EnterpriseEditionSpec `json:"enterpriseEdition,omitempty"`
-
-	AgentsOnly *AgentsOnlySpec `json:"agentsOnly,omitempty"`
-
-	UrlBasePath                string          `json:"urlBasePath,omitempty"`
-	PgConnectionString         string          `json:"pgConnectionString,omitempty"`
-	CacheTTL                   metav1.Duration `json:"cacheTTL,omitempty"`
-	DisableUsageStatistics     bool            `json:"disableUsageStatistics,omitempty"`
-	AuthAnonymousRole          string          `json:"authAnonymousRole,omitempty"`
-	AuthBootstrapAdminPassword string          `json:"authBootstrapAdminPassword,omitempty"`
+	AgentsOnly        *AgentsOnlySpec        `json:"agentsOnly,omitempty"`
 
 	Service ServiceSpec `json:"service,omitempty"`
 

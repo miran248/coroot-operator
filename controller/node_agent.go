@@ -23,9 +23,17 @@ func (r *CorootReconciler) nodeAgentDaemonSet(cr *corootv1.Coroot) *appsv1.Daemo
 	if cr.Spec.AgentsOnly != nil {
 		collectorEndpoint = cr.Spec.AgentsOnly.CorootURL
 	}
-	scrapeInterval := cr.Spec.MetricRefreshInterval.Duration.String()
-	if cr.Spec.MetricRefreshInterval.Duration == 0 {
+	scrapeInterval := cr.Spec.MetricsRefreshInterval.Duration.String()
+	if cr.Spec.MetricsRefreshInterval.Duration == 0 {
 		scrapeInterval = corootv1.DefaultMetricRefreshInterval
+	}
+	env := []corev1.EnvVar{
+		{Name: "COLLECTOR_ENDPOINT", Value: collectorEndpoint},
+		{Name: "API_KEY", Value: cr.Spec.ApiKey},
+		{Name: "SCRAPE_INTERVAL", Value: scrapeInterval},
+	}
+	for _, e := range cr.Spec.NodeAgent.Env {
+		env = append(env, e)
 	}
 	ds.Spec = appsv1.DaemonSetSpec{
 		Selector: &metav1.LabelSelector{
@@ -49,12 +57,8 @@ func (r *CorootReconciler) nodeAgentDaemonSet(cr *corootv1.Coroot) *appsv1.Daemo
 							"--cgroupfs-root=/host/sys/fs/cgroup",
 						},
 						SecurityContext: &corev1.SecurityContext{Privileged: ptr.To(true)},
-						Env: []corev1.EnvVar{
-							{Name: "COLLECTOR_ENDPOINT", Value: collectorEndpoint},
-							{Name: "API_KEY", Value: cr.Spec.ApiKey},
-							{Name: "SCRAPE_INTERVAL", Value: scrapeInterval},
-						},
-						Resources: cr.Spec.NodeAgent.Resources,
+						Env:             env,
+						Resources:       cr.Spec.NodeAgent.Resources,
 						VolumeMounts: []corev1.VolumeMount{
 							{Name: "cgroupfs", MountPath: "/host/sys/fs/cgroup", ReadOnly: true},
 							{Name: "tracefs", MountPath: "/sys/kernel/tracing"},
