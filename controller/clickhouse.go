@@ -96,6 +96,46 @@ func (r *CorootReconciler) clickhouseServiceHeadless(cr *corootv1.Coroot) *corev
 	return s
 }
 
+func (r *CorootReconciler) clickhousePVCs(cr *corootv1.Coroot) []*corev1.PersistentVolumeClaim {
+	ls := Labels(cr, "clickhouse")
+	shards := cr.Spec.Clickhouse.Shards
+	if shards == 0 {
+		shards = 1
+	}
+	replicas := cr.Spec.Clickhouse.Replicas
+	if replicas == 0 {
+		replicas = 1
+	}
+	size := cr.Spec.Clickhouse.Storage.Size
+	if size.IsZero() {
+		size, _ = resource.ParseQuantity("100Gi")
+	}
+
+	var res []*corev1.PersistentVolumeClaim
+	for shard := 0; shard < shards; shard++ {
+		for replica := 0; replica < replicas; replica++ {
+			pvc := &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      fmt.Sprintf("data-%s-clickhouse-shard-%d-%d", cr.Name, shard, replica),
+					Namespace: cr.Namespace,
+					Labels:    ls,
+				},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+					Resources: corev1.VolumeResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceStorage: size,
+						},
+					},
+					StorageClassName: cr.Spec.Storage.ClassName,
+				},
+			}
+			res = append(res, pvc)
+		}
+	}
+	return res
+}
+
 func (r *CorootReconciler) clickhouseStatefulSets(cr *corootv1.Coroot) []*appsv1.StatefulSet {
 	ls := Labels(cr, "clickhouse")
 
@@ -106,10 +146,6 @@ func (r *CorootReconciler) clickhouseStatefulSets(cr *corootv1.Coroot) []*appsv1
 	replicas := int32(cr.Spec.Clickhouse.Replicas)
 	if replicas == 0 {
 		replicas = 1
-	}
-	storageSize := cr.Spec.Clickhouse.Storage.Size
-	if storageSize.IsZero() {
-		storageSize, _ = resource.ParseQuantity("100Gi")
 	}
 
 	var res []*appsv1.StatefulSet
@@ -133,15 +169,6 @@ func (r *CorootReconciler) clickhouseStatefulSets(cr *corootv1.Coroot) []*appsv1
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "data",
 						Namespace: cr.Namespace,
-					},
-					Spec: corev1.PersistentVolumeClaimSpec{
-						AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-						Resources: corev1.VolumeResourceRequirements{
-							Requests: corev1.ResourceList{
-								corev1.ResourceStorage: storageSize,
-							},
-						},
-						StorageClassName: cr.Spec.Clickhouse.Storage.ClassName,
 					},
 				},
 			},
@@ -209,6 +236,14 @@ func (r *CorootReconciler) clickhouseStatefulSets(cr *corootv1.Coroot) []*appsv1
 								EmptyDir: &corev1.EmptyDirVolumeSource{},
 							},
 						},
+						//{
+						//	Name: "data",
+						//	VolumeSource: corev1.VolumeSource{
+						//		PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						//			ClaimName: fmt.Sprintf("data-%s-clickhouse-shard-%d", cr.Name, shard),
+						//		},
+						//	},
+						//},
 					},
 				},
 			},

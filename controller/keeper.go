@@ -46,6 +46,36 @@ func (r *CorootReconciler) clickhouseKeeperServiceHeadless(cr *corootv1.Coroot) 
 	return s
 }
 
+func (r *CorootReconciler) clickhouseKeeperPVCs(cr *corootv1.Coroot) []*corev1.PersistentVolumeClaim {
+	ls := Labels(cr, "clickhouse-keeper")
+	size := cr.Spec.Clickhouse.Keeper.Storage.Size
+	if size.IsZero() {
+		size, _ = resource.ParseQuantity("10Gi")
+	}
+
+	var res []*corev1.PersistentVolumeClaim
+	for replica := 0; replica < ClickhouseKeeperReplicas; replica++ {
+		pvc := &corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("data-%s-clickhouse-keeper-%d", cr.Name, replica),
+				Namespace: cr.Namespace,
+				Labels:    ls,
+			},
+			Spec: corev1.PersistentVolumeClaimSpec{
+				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+				Resources: corev1.VolumeResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceStorage: size,
+					},
+				},
+				StorageClassName: cr.Spec.Storage.ClassName,
+			},
+		}
+		res = append(res, pvc)
+	}
+	return res
+}
+
 func (r *CorootReconciler) clickhouseKeeperStatefulSet(cr *corootv1.Coroot) *appsv1.StatefulSet {
 	ls := Labels(cr, "clickhouse-keeper")
 	ss := &appsv1.StatefulSet{
@@ -72,15 +102,16 @@ func (r *CorootReconciler) clickhouseKeeperStatefulSet(cr *corootv1.Coroot) *app
 				Name:      "data",
 				Namespace: cr.Namespace,
 			},
-			Spec: corev1.PersistentVolumeClaimSpec{
-				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-				Resources: corev1.VolumeResourceRequirements{
-					Requests: corev1.ResourceList{
-						corev1.ResourceStorage: storageSize,
-					},
-				},
-				StorageClassName: cr.Spec.Clickhouse.Keeper.Storage.ClassName,
-			},
+			//Spec: corev1.PersistentVolumeClaimSpec{
+			//	VolumeMode:  ptr.To(corev1.PersistentVolumeFilesystem),
+			//	AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			//	Resources: corev1.VolumeResourceRequirements{
+			//		Requests: corev1.ResourceList{
+			//			corev1.ResourceStorage: storageSize,
+			//		},
+			//	},
+			//	StorageClassName: cr.Spec.Clickhouse.Keeper.Storage.ClassName,
+			//},
 		}},
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{

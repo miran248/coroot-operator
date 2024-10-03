@@ -52,6 +52,7 @@ func (r *CorootReconciler) fetchAppVersions() {
 		}
 		versions[app] = v
 	}
+	logger.Info(fmt.Sprintf("got app versions: %v", versions))
 	r.versionsLock.Lock()
 	defer r.versionsLock.Unlock()
 	for app, v := range versions {

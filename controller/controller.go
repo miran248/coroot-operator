@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	corootv1 "github.io/coroot/operator/api/v1"
+	"golang.org/x/exp/maps"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -48,10 +49,11 @@ func NewCorootReconciler(mgr ctrl.Manager) *CorootReconciler {
 		for range time.Tick(AppVersionsUpdateInterval) {
 			r.fetchAppVersions()
 			r.instancesLock.Lock()
-			for i := range r.instances {
+			instances := maps.Keys(r.instances)
+			r.instancesLock.Unlock()
+			for _, i := range instances {
 				_, _ = r.Reconcile(nil, i)
 			}
-			r.instancesLock.Unlock()
 		}
 	}()
 
@@ -94,8 +96,6 @@ func (r *CorootReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	r.instances[req] = true
 	r.instancesLock.Unlock()
 
-	logger.Info(fmt.Sprintf("%+v", cr.Spec))
-
 	r.CreateOrUpdateDaemonSet(ctx, cr, r.nodeAgentDaemonSet(cr))
 
 	r.CreateOrUpdateServiceAccount(ctx, cr, r.clusterAgentServiceAccount(cr))
@@ -119,10 +119,16 @@ func (r *CorootReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if cr.Spec.ExternalClickhouse == nil {
 		r.CreateSecret(ctx, cr, r.clickhouseSecret(cr))
 
+		for _, pvc := range r.clickhouseKeeperPVCs(cr) {
+			r.CreateOrUpdatePVC(ctx, cr, pvc)
+		}
 		r.CreateOrUpdateStatefulSet(ctx, cr, r.clickhouseKeeperStatefulSet(cr))
 		r.CreateOrUpdateService(ctx, cr, r.clickhouseKeeperServiceHeadless(cr))
 
 		r.CreateOrUpdateService(ctx, cr, r.clickhouseServiceHeadless(cr))
+		for _, pvc := range r.clickhousePVCs(cr) {
+			r.CreateOrUpdatePVC(ctx, cr, pvc)
+		}
 		for _, clickhouse := range r.clickhouseStatefulSets(cr) {
 			r.CreateOrUpdateStatefulSet(ctx, cr, clickhouse)
 		}
@@ -171,12 +177,12 @@ func (r *CorootReconciler) CreateOrUpdateDaemonSet(ctx context.Context, cr *coro
 }
 
 func (r *CorootReconciler) CreateOrUpdateStatefulSet(ctx context.Context, cr *corootv1.Coroot, ss *appsv1.StatefulSet) {
-	for i := range ss.Spec.VolumeClaimTemplates {
-		_ = ctrl.SetControllerReference(cr, &ss.Spec.VolumeClaimTemplates[i], r.Scheme)
-	}
 	spec := ss.Spec
 	r.CreateOrUpdate(ctx, cr, ss, func() error {
-		return Merge(&ss.Spec, spec)
+		volumeClaimTemplates := ss.Spec.VolumeClaimTemplates[:]
+		err := Merge(&ss.Spec, spec)
+		ss.Spec.VolumeClaimTemplates = volumeClaimTemplates
+		return err
 	})
 }
 
@@ -190,7 +196,9 @@ func (r *CorootReconciler) CreateOrUpdatePVC(ctx context.Context, cr *corootv1.C
 func (r *CorootReconciler) CreateOrUpdateService(ctx context.Context, cr *corootv1.Coroot, s *corev1.Service) {
 	spec := s.Spec
 	r.CreateOrUpdate(ctx, cr, s, func() error {
-		return Merge(&s.Spec, spec)
+		err := Merge(&s.Spec, spec)
+		s.Spec.Ports = spec.Ports
+		return err
 	})
 }
 
