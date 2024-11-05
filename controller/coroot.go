@@ -60,7 +60,7 @@ func (r *CorootReconciler) corootDeployment(cr *corootv1.Coroot) *appsv1.Deploym
 	env := []corev1.EnvVar{
 		{Name: "BOOTSTRAP_REFRESH_INTERVAL", Value: refreshInterval},
 		{Name: "BOOTSTRAP_PROMETHEUS_URL", Value: fmt.Sprintf("http://%s-prometheus.%s:9090", cr.Name, cr.Namespace)},
-		{Name: "DO_NOT_CHECK_FOR_UPDATES"},
+		{Name: "DO_NOT_CHECK_FOR_UPDATES", Value: "1"},
 		{Name: "INSTALLATION_TYPE", Value: "k8s-operator"},
 	}
 	if cr.Spec.CacheTTL.Duration > 0 {

@@ -6,7 +6,7 @@ domain: coroot.com
 layout:
 - go.kubebuilder.io/v4
 projectName: coroot-operator
-repo: github.io/coroot/operator
+repo: github.io/coroot/coroot-operator
 resources:
 - api:
     crdVersion: v1

@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	ClickhouseImage          = "clickhouse/clickhouse-server:24.8.4"
+	ClickhouseImage          = "ghcr.io/coroot/clickhouse:24.8.4-ubi9-0"
 	ClickhouseKeeperReplicas = 3
 )
 

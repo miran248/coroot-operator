@@ -9,6 +9,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	KubeStateMetricsImage = "ghcr.io/coroot/kube-state-metrics:2.13.0-ubi9-0"
+)
+
 func (r *CorootReconciler) clusterAgentServiceAccount(cr *corootv1.Coroot) *corev1.ServiceAccount {
 	a := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
@@ -129,7 +133,7 @@ func (r *CorootReconciler) clusterAgentDeployment(cr *corootv1.Coroot) *appsv1.D
 						Env: env,
 					},
 					{
-						Image: "registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.13.0",
+						Image: KubeStateMetricsImage,
 						Name:  "kube-state-metrics",
 						Args: []string{
 							"--host=127.0.0.1",
