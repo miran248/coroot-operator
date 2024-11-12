@@ -9,6 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -98,10 +99,9 @@ func (r *CorootReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	r.CreateOrUpdateDaemonSet(ctx, cr, r.nodeAgentDaemonSet(cr))
 
-	r.CreateOrUpdateServiceAccount(ctx, cr, r.clusterAgentServiceAccount(cr))
+	r.CreateOrUpdateDeployment(ctx, cr, r.clusterAgentDeployment(cr))
 	r.CreateOrUpdateClusterRole(ctx, cr, r.clusterAgentClusterRole(cr))
 	r.CreateOrUpdateClusterRoleBinding(ctx, cr, r.clusterAgentClusterRoleBinding(cr))
-	r.CreateOrUpdateDeployment(ctx, cr, r.clusterAgentDeployment(cr))
 
 	if cr.Spec.AgentsOnly != nil {
 		// TODO: delete
@@ -163,6 +163,8 @@ func (r *CorootReconciler) CreateSecret(ctx context.Context, cr *corootv1.Coroot
 }
 
 func (r *CorootReconciler) CreateOrUpdateDeployment(ctx context.Context, cr *corootv1.Coroot, d *appsv1.Deployment) {
+	r.CreateOrUpdateServiceAccount(ctx, cr, d.ObjectMeta)
+	d.Spec.Template.Spec.ServiceAccountName = d.ObjectMeta.Name
 	spec := d.Spec
 	r.CreateOrUpdate(ctx, cr, d, func() error {
 		return Merge(&d.Spec, spec)
@@ -170,6 +172,8 @@ func (r *CorootReconciler) CreateOrUpdateDeployment(ctx context.Context, cr *cor
 }
 
 func (r *CorootReconciler) CreateOrUpdateDaemonSet(ctx context.Context, cr *corootv1.Coroot, ds *appsv1.DaemonSet) {
+	r.CreateOrUpdateServiceAccount(ctx, cr, ds.ObjectMeta)
+	ds.Spec.Template.Spec.ServiceAccountName = ds.ObjectMeta.Name
 	spec := ds.Spec
 	r.CreateOrUpdate(ctx, cr, ds, func() error {
 		return Merge(&ds.Spec, spec)
@@ -177,6 +181,8 @@ func (r *CorootReconciler) CreateOrUpdateDaemonSet(ctx context.Context, cr *coro
 }
 
 func (r *CorootReconciler) CreateOrUpdateStatefulSet(ctx context.Context, cr *corootv1.Coroot, ss *appsv1.StatefulSet) {
+	r.CreateOrUpdateServiceAccount(ctx, cr, ss.ObjectMeta)
+	ss.Spec.Template.Spec.ServiceAccountName = ss.ObjectMeta.Name
 	spec := ss.Spec
 	r.CreateOrUpdate(ctx, cr, ss, func() error {
 		volumeClaimTemplates := ss.Spec.VolumeClaimTemplates[:]
@@ -202,8 +208,13 @@ func (r *CorootReconciler) CreateOrUpdateService(ctx context.Context, cr *coroot
 	})
 }
 
-func (r *CorootReconciler) CreateOrUpdateServiceAccount(ctx context.Context, cr *corootv1.Coroot, s *corev1.ServiceAccount) {
-	r.CreateOrUpdate(ctx, cr, s, nil)
+func (r *CorootReconciler) CreateOrUpdateServiceAccount(ctx context.Context, cr *corootv1.Coroot, om metav1.ObjectMeta) {
+	sa := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{
+		Name:      om.Name,
+		Namespace: om.Namespace,
+		Labels:    om.Labels,
+	}}
+	r.CreateOrUpdate(ctx, cr, sa, nil)
 }
 
 func (r *CorootReconciler) CreateOrUpdateClusterRole(ctx context.Context, cr *corootv1.Coroot, role *rbacv1.ClusterRole) {

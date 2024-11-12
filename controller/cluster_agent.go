@@ -13,17 +13,6 @@ const (
 	KubeStateMetricsImage = "ghcr.io/coroot/kube-state-metrics:2.13.0-ubi9-0"
 )
 
-func (r *CorootReconciler) clusterAgentServiceAccount(cr *corootv1.Coroot) *corev1.ServiceAccount {
-	a := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.Name + "-cluster-agent",
-			Namespace: cr.Namespace,
-			Labels:    Labels(cr, "coroot-cluster-agent"),
-		},
-	}
-	return a
-}
-
 func (r *CorootReconciler) clusterAgentClusterRoleBinding(cr *corootv1.Coroot) *rbacv1.ClusterRoleBinding {
 	b := &rbacv1.ClusterRoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
@@ -115,9 +104,8 @@ func (r *CorootReconciler) clusterAgentDeployment(cr *corootv1.Coroot) *appsv1.D
 				Labels: ls,
 			},
 			Spec: corev1.PodSpec{
-				SecurityContext:    nonRootSecurityContext,
-				ServiceAccountName: cr.Name + "-cluster-agent",
-				Affinity:           cr.Spec.ClusterAgent.Affinity,
+				SecurityContext: nonRootSecurityContext,
+				Affinity:        cr.Spec.ClusterAgent.Affinity,
 				Containers: []corev1.Container{
 					{
 						Image: r.getAppImage(cr, AppClusterAgent),
