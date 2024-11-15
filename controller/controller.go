@@ -22,7 +22,7 @@ import (
 
 const (
 	AppVersionsUpdateInterval = time.Hour
-	BusyboxImage              = "busybox:1.36"
+	UBIMinimalImage           = "registry.access.redhat.com/ubi9/ubi-minimal"
 )
 
 type CorootReconciler struct {
@@ -71,7 +71,8 @@ func NewCorootReconciler(mgr ctrl.Manager) *CorootReconciler {
 // +kubebuilder:rbac:groups=apps,resources=deployments;replicasets;daemonsets;statefulsets;cronjobs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=batch,resources=cronjobs;jobs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=storage.k8s.io,resources=storageclasses;volumeattachments,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles;clusterrolebindings,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles;clusterrolebindings;roles;rolebindings,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=security.openshift.io,resources=securitycontextconstraints,verbs=use
 
 func (r *CorootReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
@@ -97,21 +98,28 @@ func (r *CorootReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	r.instances[req] = true
 	r.instancesLock.Unlock()
 
+	r.CreateOrUpdateRole(ctx, cr, r.openshiftSCCRole(cr, sccNonroot))
+	r.CreateOrUpdateRole(ctx, cr, r.openshiftSCCRole(cr, sccPrivileged))
+
+	r.CreateOrUpdateServiceAccount(ctx, cr, "node-agent", sccPrivileged)
 	r.CreateOrUpdateDaemonSet(ctx, cr, r.nodeAgentDaemonSet(cr))
 
-	r.CreateOrUpdateDeployment(ctx, cr, r.clusterAgentDeployment(cr))
+	r.CreateOrUpdateServiceAccount(ctx, cr, "cluster-agent", sccNonroot)
 	r.CreateOrUpdateClusterRole(ctx, cr, r.clusterAgentClusterRole(cr))
 	r.CreateOrUpdateClusterRoleBinding(ctx, cr, r.clusterAgentClusterRoleBinding(cr))
+	r.CreateOrUpdateDeployment(ctx, cr, r.clusterAgentDeployment(cr))
 
 	if cr.Spec.AgentsOnly != nil {
 		// TODO: delete
 		return ctrl.Result{}, nil
 	}
 
+	r.CreateOrUpdateServiceAccount(ctx, cr, "coroot", sccNonroot)
 	r.CreateOrUpdatePVC(ctx, cr, r.corootPVC(cr))
 	r.CreateOrUpdateDeployment(ctx, cr, r.corootDeployment(cr))
 	r.CreateOrUpdateService(ctx, cr, r.corootService(cr))
 
+	r.CreateOrUpdateServiceAccount(ctx, cr, "prometheus", sccNonroot)
 	r.CreateOrUpdatePVC(ctx, cr, r.prometheusPVC(cr))
 	r.CreateOrUpdateDeployment(ctx, cr, r.prometheusDeployment(cr))
 	r.CreateOrUpdateService(ctx, cr, r.prometheusService(cr))
@@ -119,12 +127,14 @@ func (r *CorootReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if cr.Spec.ExternalClickhouse == nil {
 		r.CreateSecret(ctx, cr, r.clickhouseSecret(cr))
 
+		r.CreateOrUpdateServiceAccount(ctx, cr, "clickhouse-keeper", sccNonroot)
 		for _, pvc := range r.clickhouseKeeperPVCs(cr) {
 			r.CreateOrUpdatePVC(ctx, cr, pvc)
 		}
 		r.CreateOrUpdateStatefulSet(ctx, cr, r.clickhouseKeeperStatefulSet(cr))
 		r.CreateOrUpdateService(ctx, cr, r.clickhouseKeeperServiceHeadless(cr))
 
+		r.CreateOrUpdateServiceAccount(ctx, cr, "clickhouse", sccNonroot)
 		r.CreateOrUpdateService(ctx, cr, r.clickhouseServiceHeadless(cr))
 		for _, pvc := range r.clickhousePVCs(cr) {
 			r.CreateOrUpdatePVC(ctx, cr, pvc)
@@ -163,8 +173,6 @@ func (r *CorootReconciler) CreateSecret(ctx context.Context, cr *corootv1.Coroot
 }
 
 func (r *CorootReconciler) CreateOrUpdateDeployment(ctx context.Context, cr *corootv1.Coroot, d *appsv1.Deployment) {
-	r.CreateOrUpdateServiceAccount(ctx, cr, d.ObjectMeta)
-	d.Spec.Template.Spec.ServiceAccountName = d.ObjectMeta.Name
 	spec := d.Spec
 	r.CreateOrUpdate(ctx, cr, d, func() error {
 		return Merge(&d.Spec, spec)
@@ -172,8 +180,6 @@ func (r *CorootReconciler) CreateOrUpdateDeployment(ctx context.Context, cr *cor
 }
 
 func (r *CorootReconciler) CreateOrUpdateDaemonSet(ctx context.Context, cr *corootv1.Coroot, ds *appsv1.DaemonSet) {
-	r.CreateOrUpdateServiceAccount(ctx, cr, ds.ObjectMeta)
-	ds.Spec.Template.Spec.ServiceAccountName = ds.ObjectMeta.Name
 	spec := ds.Spec
 	r.CreateOrUpdate(ctx, cr, ds, func() error {
 		return Merge(&ds.Spec, spec)
@@ -181,8 +187,6 @@ func (r *CorootReconciler) CreateOrUpdateDaemonSet(ctx context.Context, cr *coro
 }
 
 func (r *CorootReconciler) CreateOrUpdateStatefulSet(ctx context.Context, cr *corootv1.Coroot, ss *appsv1.StatefulSet) {
-	r.CreateOrUpdateServiceAccount(ctx, cr, ss.ObjectMeta)
-	ss.Spec.Template.Spec.ServiceAccountName = ss.ObjectMeta.Name
 	spec := ss.Spec
 	r.CreateOrUpdate(ctx, cr, ss, func() error {
 		volumeClaimTemplates := ss.Spec.VolumeClaimTemplates[:]
@@ -208,13 +212,22 @@ func (r *CorootReconciler) CreateOrUpdateService(ctx context.Context, cr *coroot
 	})
 }
 
-func (r *CorootReconciler) CreateOrUpdateServiceAccount(ctx context.Context, cr *corootv1.Coroot, om metav1.ObjectMeta) {
+func (r *CorootReconciler) CreateOrUpdateServiceAccount(ctx context.Context, cr *corootv1.Coroot, component, scc string) {
 	sa := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{
-		Name:      om.Name,
-		Namespace: om.Namespace,
-		Labels:    om.Labels,
+		Name:      cr.Name + "-" + component,
+		Namespace: cr.Namespace,
+		Labels:    Labels(cr, component),
 	}}
 	r.CreateOrUpdate(ctx, cr, sa, nil)
+	r.CreateOrUpdate(ctx, cr, r.openshiftSCCRoleBinding(cr, component, scc), nil)
+}
+
+func (r *CorootReconciler) CreateOrUpdateRole(ctx context.Context, cr *corootv1.Coroot, role *rbacv1.Role) {
+	rules := role.Rules
+	r.CreateOrUpdate(ctx, cr, role, func() error {
+		role.Rules = rules
+		return nil
+	})
 }
 
 func (r *CorootReconciler) CreateOrUpdateClusterRole(ctx context.Context, cr *corootv1.Coroot, role *rbacv1.ClusterRole) {

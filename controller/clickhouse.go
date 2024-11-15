@@ -177,11 +177,12 @@ func (r *CorootReconciler) clickhouseStatefulSets(cr *corootv1.Coroot) []*appsv1
 					Labels: ls,
 				},
 				Spec: corev1.PodSpec{
-					SecurityContext: nonRootSecurityContext,
-					Affinity:        cr.Spec.Clickhouse.Affinity,
+					ServiceAccountName: cr.Name + "-clickhouse",
+					SecurityContext:    nonRootSecurityContext,
+					Affinity:           cr.Spec.Clickhouse.Affinity,
 					InitContainers: []corev1.Container{
 						{
-							Image:        BusyboxImage,
+							Image:        UBIMinimalImage,
 							Name:         "config",
 							Command:      []string{"/bin/sh", "-c"},
 							Args:         []string{clickhouseConfigCmd("/config/config.xml", cr, shards, int(replicas), ClickhouseKeeperReplicas)},

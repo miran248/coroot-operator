@@ -122,8 +122,9 @@ func (r *CorootReconciler) corootDeployment(cr *corootv1.Coroot) *appsv1.Deploym
 				Labels: ls,
 			},
 			Spec: corev1.PodSpec{
-				SecurityContext: nonRootSecurityContext,
-				Affinity:        cr.Spec.Affinity,
+				ServiceAccountName: cr.Name + "-coroot",
+				SecurityContext:    nonRootSecurityContext,
+				Affinity:           cr.Spec.Affinity,
 				Containers: []corev1.Container{
 					{
 						Image: image,

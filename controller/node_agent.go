@@ -45,10 +45,11 @@ func (r *CorootReconciler) nodeAgentDaemonSet(cr *corootv1.Coroot) *appsv1.Daemo
 				Labels: ls,
 			},
 			Spec: corev1.PodSpec{
-				HostPID:           true,
-				Tolerations:       []corev1.Toleration{{Operator: corev1.TolerationOpExists}},
-				PriorityClassName: cr.Spec.NodeAgent.PriorityClassName,
-				Affinity:          cr.Spec.NodeAgent.Affinity,
+				ServiceAccountName: cr.Name + "-node-agent",
+				HostPID:            true,
+				Tolerations:        []corev1.Toleration{{Operator: corev1.TolerationOpExists}},
+				PriorityClassName:  cr.Spec.NodeAgent.PriorityClassName,
+				Affinity:           cr.Spec.NodeAgent.Affinity,
 				Containers: []corev1.Container{
 					{
 						Name:  "node-agent",

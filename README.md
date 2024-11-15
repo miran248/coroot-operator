@@ -1,1 +1,1 @@
-# coroot-operator
+Coroot Kubernetes/Openshift operator.

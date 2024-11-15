@@ -88,8 +88,9 @@ func (r *CorootReconciler) prometheusDeployment(cr *corootv1.Coroot) *appsv1.Dep
 				Labels: ls,
 			},
 			Spec: corev1.PodSpec{
-				SecurityContext: nonRootSecurityContext,
-				Affinity:        cr.Spec.Prometheus.Affinity,
+				ServiceAccountName: cr.Name + "-prometheus",
+				SecurityContext:    nonRootSecurityContext,
+				Affinity:           cr.Spec.Prometheus.Affinity,
 				Containers: []corev1.Container{
 					{
 						Image:   PrometheusImage,

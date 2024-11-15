@@ -80,7 +80,7 @@ func (r *CorootReconciler) clickhouseKeeperStatefulSet(cr *corootv1.Coroot) *app
 	ls := Labels(cr, "clickhouse-keeper")
 	ss := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-clickhouse-keeper", cr.Name),
+			Name:      cr.Name + "-clickhouse-keeper",
 			Namespace: cr.Namespace,
 			Labels:    ls,
 		},
@@ -102,27 +102,18 @@ func (r *CorootReconciler) clickhouseKeeperStatefulSet(cr *corootv1.Coroot) *app
 				Name:      "data",
 				Namespace: cr.Namespace,
 			},
-			//Spec: corev1.PersistentVolumeClaimSpec{
-			//	VolumeMode:  ptr.To(corev1.PersistentVolumeFilesystem),
-			//	AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-			//	Resources: corev1.VolumeResourceRequirements{
-			//		Requests: corev1.ResourceList{
-			//			corev1.ResourceStorage: storageSize,
-			//		},
-			//	},
-			//	StorageClassName: cr.Spec.Clickhouse.Keeper.Storage.ClassName,
-			//},
 		}},
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: ls,
 			},
 			Spec: corev1.PodSpec{
-				SecurityContext: nonRootSecurityContext,
-				Affinity:        cr.Spec.Clickhouse.Keeper.Affinity,
+				ServiceAccountName: cr.Name + "-clickhouse-keeper",
+				SecurityContext:    nonRootSecurityContext,
+				Affinity:           cr.Spec.Clickhouse.Keeper.Affinity,
 				InitContainers: []corev1.Container{
 					{
-						Image:        BusyboxImage,
+						Image:        UBIMinimalImage,
 						Name:         "config",
 						Command:      []string{"/bin/sh", "-c"},
 						Args:         []string{clickhouseKeeperConfigCmd("/config/config.xml", cr, int(replicas))},
@@ -185,7 +176,7 @@ func clickhouseKeeperConfigCmd(filename string, cr *corootv1.Coroot, replicas in
 	}
 	var out bytes.Buffer
 	_ = clickhouseKeeperConfigTemplate.Execute(&out, params)
-	return "cat <<EOF | sed s/SERVER_ID/$(hostname -s | sed -E 's/.*-([0-9]+)$/\\1/')/ > " + filename + out.String() + "EOF"
+	return "cat <<EOF | sed s/SERVER_ID/$(echo $HOSTNAME | sed -E 's/.*-([0-9]+)$/\\1/')/ > " + filename + out.String() + "EOF"
 }
 
 var clickhouseKeeperConfigTemplate = template.Must(template.New("").Parse(`

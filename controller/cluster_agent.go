@@ -104,8 +104,9 @@ func (r *CorootReconciler) clusterAgentDeployment(cr *corootv1.Coroot) *appsv1.D
 				Labels: ls,
 			},
 			Spec: corev1.PodSpec{
-				SecurityContext: nonRootSecurityContext,
-				Affinity:        cr.Spec.ClusterAgent.Affinity,
+				ServiceAccountName: cr.Name + "-cluster-agent",
+				SecurityContext:    nonRootSecurityContext,
+				Affinity:           cr.Spec.ClusterAgent.Affinity,
 				Containers: []corev1.Container{
 					{
 						Image: r.getAppImage(cr, AppClusterAgent),
