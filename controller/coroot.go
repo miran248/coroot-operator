@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+
 	corootv1 "github.io/coroot/operator/api/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -58,8 +59,8 @@ func (r *CorootReconciler) corootDeployment(cr *corootv1.Coroot) *appsv1.Deploym
 	}
 
 	env := []corev1.EnvVar{
-		{Name: "BOOTSTRAP_REFRESH_INTERVAL", Value: refreshInterval},
-		{Name: "BOOTSTRAP_PROMETHEUS_URL", Value: fmt.Sprintf("http://%s-prometheus.%s:9090", cr.Name, cr.Namespace)},
+		{Name: "GLOBAL_REFRESH_INTERVAL", Value: refreshInterval},
+		{Name: "GLOBAL_PROMETHEUS_URL", Value: fmt.Sprintf("http://%s-prometheus.%s:9090", cr.Name, cr.Namespace)},
 		{Name: "DO_NOT_CHECK_FOR_UPDATES", Value: "1"},
 		{Name: "INSTALLATION_TYPE", Value: "k8s-operator"},
 	}
@@ -86,19 +87,19 @@ func (r *CorootReconciler) corootDeployment(cr *corootv1.Coroot) *appsv1.Deploym
 
 	if cr.Spec.ExternalClickhouse != nil {
 		env = append(env,
-			corev1.EnvVar{Name: "BOOTSTRAP_CLICKHOUSE_ADDRESS", Value: cr.Spec.ExternalClickhouse.Address},
-			corev1.EnvVar{Name: "BOOTSTRAP_CLICKHOUSE_USER", Value: cr.Spec.ExternalClickhouse.User},
-			corev1.EnvVar{Name: "BOOTSTRAP_CLICKHOUSE_PASSWORD", Value: cr.Spec.ExternalClickhouse.Password},
-			corev1.EnvVar{Name: "BOOTSTRAP_CLICKHOUSE_DATABASE", Value: cr.Spec.ExternalClickhouse.Database},
+			corev1.EnvVar{Name: "GLOBAL_CLICKHOUSE_ADDRESS", Value: cr.Spec.ExternalClickhouse.Address},
+			corev1.EnvVar{Name: "GLOBAL_CLICKHOUSE_USER", Value: cr.Spec.ExternalClickhouse.User},
+			corev1.EnvVar{Name: "GLOBAL_CLICKHOUSE_PASSWORD", Value: cr.Spec.ExternalClickhouse.Password},
+			corev1.EnvVar{Name: "GLOBAL_CLICKHOUSE_INITIAL_DATABASE", Value: cr.Spec.ExternalClickhouse.Database},
 		)
 	} else {
 		env = append(env,
 			corev1.EnvVar{
-				Name:  "BOOTSTRAP_CLICKHOUSE_ADDRESS",
+				Name:  "GLOBAL_CLICKHOUSE_ADDRESS",
 				Value: fmt.Sprintf("%s-clickhouse.%s:9000", cr.Name, cr.Namespace),
 			},
-			corev1.EnvVar{Name: "BOOTSTRAP_CLICKHOUSE_USER", Value: "default"},
-			corev1.EnvVar{Name: "BOOTSTRAP_CLICKHOUSE_PASSWORD", ValueFrom: &corev1.EnvVarSource{
+			corev1.EnvVar{Name: "GLOBAL_CLICKHOUSE_USER", Value: "default"},
+			corev1.EnvVar{Name: "GLOBAL_CLICKHOUSE_PASSWORD", ValueFrom: &corev1.EnvVarSource{
 				SecretKeyRef: &corev1.SecretKeySelector{
 					LocalObjectReference: corev1.LocalObjectReference{
 						Name: fmt.Sprintf("%s-clickhouse", cr.Name),
@@ -106,7 +107,7 @@ func (r *CorootReconciler) corootDeployment(cr *corootv1.Coroot) *appsv1.Deploym
 					Key: "password",
 				},
 			}},
-			corev1.EnvVar{Name: "BOOTSTRAP_CLICKHOUSE_DATABASE", Value: "default"},
+			corev1.EnvVar{Name: "GLOBAL_CLICKHOUSE_INITIAL_DATABASE", Value: "default"},
 		)
 	}
 
