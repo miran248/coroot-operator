@@ -87,10 +87,6 @@ func (r *CorootReconciler) clickhouseKeeperStatefulSet(cr *corootv1.Coroot) *app
 	}
 
 	replicas := int32(ClickhouseKeeperReplicas)
-	storageSize := cr.Spec.Clickhouse.Keeper.Storage.Size
-	if storageSize.IsZero() {
-		storageSize, _ = resource.ParseQuantity("10Gi")
-	}
 	ss.Spec = appsv1.StatefulSetSpec{
 		Selector: &metav1.LabelSelector{
 			MatchLabels: ls,

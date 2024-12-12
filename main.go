@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.io/coroot/operator/controller"
+	"go.uber.org/zap/zapcore"
 	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -20,8 +21,7 @@ import (
 )
 
 var (
-	scheme   = runtime.NewScheme()
-	setupLog = ctrl.Log.WithName("setup")
+	scheme = runtime.NewScheme()
 )
 
 func init() {
@@ -32,7 +32,8 @@ func init() {
 }
 
 func main() {
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zap.Options{Development: true})))
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zap.Options{Development: true, StacktraceLevel: zapcore.DPanicLevel})))
+	logger := ctrl.Log
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
@@ -40,30 +41,30 @@ func main() {
 		HealthProbeBindAddress: ":8081",
 	})
 	if err != nil {
-		setupLog.Error(err, "unable to start manager")
+		logger.Error(err, "failed to start manager")
 		os.Exit(1)
 	}
 
 	reconciler := controller.NewCorootReconciler(mgr)
 
 	if err = reconciler.SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller")
+		logger.Error(err, "failed to create controller")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder
 
 	if err = mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up health check")
+		logger.Error(err, "failed to set up health check")
 		os.Exit(1)
 	}
 	if err = mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up ready check")
+		logger.Error(err, "failed to set up ready check")
 		os.Exit(1)
 	}
 
-	setupLog.Info("starting manager")
+	logger.Info("starting manager")
 	if err = mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		setupLog.Error(err, "problem running manager")
+		logger.Error(err, "failed to start manager")
 		os.Exit(1)
 	}
 }

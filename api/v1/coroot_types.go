@@ -85,6 +85,10 @@ type ExternalClickhouseSpec struct {
 	Database string `json:"database,omitempty"`
 }
 
+type PostgresSpec struct {
+	ConnectionString string `json:"connectionString,omitempty"`
+}
+
 type CorootSpec struct {
 	ApiKey                     string          `json:"apiKey,omitempty"`
 	MetricsRefreshInterval     metav1.Duration `json:"metricsRefreshInterval,omitempty"`
@@ -97,8 +101,8 @@ type CorootSpec struct {
 	EnterpriseEdition *EnterpriseEditionSpec `json:"enterpriseEdition,omitempty"`
 	AgentsOnly        *AgentsOnlySpec        `json:"agentsOnly,omitempty"`
 
-	Service ServiceSpec `json:"service,omitempty"`
-
+	Replicas  int                         `json:"replicas,omitempty"`
+	Service   ServiceSpec                 `json:"service,omitempty"`
 	Affinity  *corev1.Affinity            `json:"affinity,omitempty"`
 	Storage   StorageSpec                 `json:"storage,omitempty"`
 	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
@@ -110,6 +114,8 @@ type CorootSpec struct {
 
 	Clickhouse         ClickhouseSpec          `json:"clickhouse,omitempty"`
 	ExternalClickhouse *ExternalClickhouseSpec `json:"externalClickhouse,omitempty"`
+
+	Postgres *PostgresSpec `json:"postgres,omitempty"`
 }
 
 type CorootStatus struct { // TODO

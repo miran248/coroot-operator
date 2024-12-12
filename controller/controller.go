@@ -15,7 +15,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sync"
 	"time"
 )
@@ -34,6 +33,8 @@ type CorootReconciler struct {
 
 	versions     map[App]string
 	versionsLock sync.Mutex
+
+	deploymentDeleted bool
 }
 
 func NewCorootReconciler(mgr ctrl.Manager) *CorootReconciler {
@@ -75,21 +76,23 @@ func NewCorootReconciler(mgr ctrl.Manager) *CorootReconciler {
 // +kubebuilder:rbac:groups=security.openshift.io,resources=securitycontextconstraints,verbs=use
 
 func (r *CorootReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := log.FromContext(ctx)
+	logger := ctrl.Log.WithValues("namespace", req.Namespace, "name", req.Name)
 
 	cr := &corootv1.Coroot{}
 	err := r.Get(ctx, req.NamespacedName, cr)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			logger.Info("Coroot has been deleted")
 			r.instancesLock.Lock()
-			delete(r.instances, req)
+			if r.instances[req] {
+				logger.Info("Coroot has been deleted")
+				delete(r.instances, req)
+				cr = &corootv1.Coroot{}
+				cr.Name = req.Name
+				cr.Namespace = req.Namespace
+				_ = r.Delete(ctx, r.clusterAgentClusterRoleBinding(cr))
+				_ = r.Delete(ctx, r.clusterAgentClusterRole(cr))
+			}
 			r.instancesLock.Unlock()
-			cr = &corootv1.Coroot{}
-			cr.Name = req.Name
-			cr.Namespace = req.Namespace
-			_ = r.Delete(ctx, r.clusterAgentClusterRoleBinding(cr))
-			_ = r.Delete(ctx, r.clusterAgentClusterRole(cr))
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
@@ -114,10 +117,20 @@ func (r *CorootReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, nil
 	}
 
+	if cr.Spec.Replicas > 1 && (cr.Spec.Postgres == nil || cr.Spec.Postgres.ConnectionString == "") {
+		logger.Error(fmt.Errorf("Postgres.ConnectionString is empty"), "Coroot requires Postgres to run multiple replicas (will run only one replica)")
+		cr.Spec.Replicas = 1
+	}
 	r.CreateOrUpdateServiceAccount(ctx, cr, "coroot", sccNonroot)
-	r.CreateOrUpdatePVC(ctx, cr, r.corootPVC(cr))
-	r.CreateOrUpdateDeployment(ctx, cr, r.corootDeployment(cr))
+	for _, pvc := range r.corootPVCs(cr) {
+		r.CreateOrUpdatePVC(ctx, cr, pvc)
+	}
+	r.CreateOrUpdateStatefulSet(ctx, cr, r.corootStatefulSet(cr))
 	r.CreateOrUpdateService(ctx, cr, r.corootService(cr))
+	if !r.deploymentDeleted {
+		_ = r.Delete(ctx, r.corootDeployment(cr))
+		r.deploymentDeleted = true
+	}
 
 	r.CreateOrUpdateServiceAccount(ctx, cr, "prometheus", sccNonroot)
 	r.CreateOrUpdatePVC(ctx, cr, r.prometheusPVC(cr))
@@ -128,11 +141,11 @@ func (r *CorootReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		r.CreateSecret(ctx, cr, r.clickhouseSecret(cr))
 
 		r.CreateOrUpdateServiceAccount(ctx, cr, "clickhouse-keeper", sccNonroot)
+		r.CreateOrUpdateService(ctx, cr, r.clickhouseKeeperServiceHeadless(cr))
 		for _, pvc := range r.clickhouseKeeperPVCs(cr) {
 			r.CreateOrUpdatePVC(ctx, cr, pvc)
 		}
 		r.CreateOrUpdateStatefulSet(ctx, cr, r.clickhouseKeeperStatefulSet(cr))
-		r.CreateOrUpdateService(ctx, cr, r.clickhouseKeeperServiceHeadless(cr))
 
 		r.CreateOrUpdateServiceAccount(ctx, cr, "clickhouse", sccNonroot)
 		r.CreateOrUpdateService(ctx, cr, r.clickhouseServiceHeadless(cr))
@@ -151,7 +164,7 @@ func (r *CorootReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 }
 
 func (r *CorootReconciler) CreateOrUpdate(ctx context.Context, cr *corootv1.Coroot, obj client.Object, f controllerutil.MutateFn) {
-	logger := log.FromContext(nil, "type", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
+	logger := ctrl.Log.WithValues("type", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
 	_ = ctrl.SetControllerReference(cr, obj, r.Scheme)
 	errMsg := "failed to create or update"
 	if f == nil {

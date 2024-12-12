@@ -43,9 +43,56 @@ func (r *CorootReconciler) corootService(cr *corootv1.Coroot) *corev1.Service {
 	return s
 }
 
+func (r *CorootReconciler) corootPVCs(cr *corootv1.Coroot) []*corev1.PersistentVolumeClaim {
+	ls := Labels(cr, "coroot")
+
+	size := cr.Spec.Storage.Size
+	if size.IsZero() {
+		size, _ = resource.ParseQuantity("10Gi")
+	}
+	replicas := cr.Spec.Replicas
+	if replicas == 0 {
+		replicas = 1
+	}
+
+	var res []*corev1.PersistentVolumeClaim
+	for replica := 0; replica < replicas; replica++ {
+		pvc := &corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("data-%s-coroot-%d", cr.Name, replica),
+				Namespace: cr.Namespace,
+				Labels:    ls,
+			},
+			Spec: corev1.PersistentVolumeClaimSpec{
+				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+				Resources: corev1.VolumeResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceStorage: size,
+					},
+				},
+				StorageClassName: cr.Spec.Storage.ClassName,
+			},
+		}
+		res = append(res, pvc)
+	}
+	return res
+}
+
 func (r *CorootReconciler) corootDeployment(cr *corootv1.Coroot) *appsv1.Deployment {
 	ls := Labels(cr, "coroot")
 	d := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      cr.Name + "-coroot",
+			Namespace: cr.Namespace,
+			Labels:    ls,
+		},
+	}
+	return d
+}
+
+func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot) *appsv1.StatefulSet {
+	ls := Labels(cr, "coroot")
+	ss := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      cr.Name + "-coroot",
 			Namespace: cr.Namespace,
@@ -61,7 +108,6 @@ func (r *CorootReconciler) corootDeployment(cr *corootv1.Coroot) *appsv1.Deploym
 	env := []corev1.EnvVar{
 		{Name: "GLOBAL_REFRESH_INTERVAL", Value: refreshInterval},
 		{Name: "GLOBAL_PROMETHEUS_URL", Value: fmt.Sprintf("http://%s-prometheus.%s:9090", cr.Name, cr.Namespace)},
-		{Name: "DO_NOT_CHECK_FOR_UPDATES", Value: "1"},
 		{Name: "INSTALLATION_TYPE", Value: "k8s-operator"},
 	}
 	if cr.Spec.CacheTTL.Duration > 0 {
@@ -111,13 +157,26 @@ func (r *CorootReconciler) corootDeployment(cr *corootv1.Coroot) *appsv1.Deploym
 		)
 	}
 
-	d.Spec = appsv1.DeploymentSpec{
+	if cr.Spec.Postgres != nil && cr.Spec.Postgres.ConnectionString != "" {
+		env = append(env, corev1.EnvVar{Name: "PG_CONNECTION_STRING", Value: cr.Spec.Postgres.ConnectionString})
+	}
+
+	replicas := int32(cr.Spec.Replicas)
+	if replicas <= 0 {
+		replicas = 1
+	}
+
+	ss.Spec = appsv1.StatefulSetSpec{
 		Selector: &metav1.LabelSelector{
 			MatchLabels: ls,
 		},
-		Strategy: appsv1.DeploymentStrategy{
-			Type: appsv1.RecreateDeploymentStrategyType,
-		},
+		Replicas: &replicas,
+		VolumeClaimTemplates: []corev1.PersistentVolumeClaim{{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "data",
+				Namespace: cr.Namespace,
+			},
+		}},
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: ls,
@@ -149,45 +208,9 @@ func (r *CorootReconciler) corootDeployment(cr *corootv1.Coroot) *appsv1.Deploym
 						},
 					},
 				},
-				Volumes: []corev1.Volume{
-					{
-						Name: "data",
-						VolumeSource: corev1.VolumeSource{
-							PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-								ClaimName: "data-" + cr.Name + "-coroot",
-							},
-						},
-					},
-				},
 			},
 		},
 	}
 
-	return d
-}
-
-func (r *CorootReconciler) corootPVC(cr *corootv1.Coroot) *corev1.PersistentVolumeClaim {
-	pvc := &corev1.PersistentVolumeClaim{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "data-" + cr.Name + "-coroot",
-			Namespace: cr.Namespace,
-			Labels:    Labels(cr, "coroot"),
-		},
-	}
-
-	size := cr.Spec.Storage.Size
-	if size.IsZero() {
-		size, _ = resource.ParseQuantity("10Gi")
-	}
-	pvc.Spec = corev1.PersistentVolumeClaimSpec{
-		AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-		Resources: corev1.VolumeResourceRequirements{
-			Requests: corev1.ResourceList{
-				corev1.ResourceStorage: size,
-			},
-		},
-		StorageClassName: cr.Spec.Storage.ClassName,
-	}
-
-	return pvc
+	return ss
 }

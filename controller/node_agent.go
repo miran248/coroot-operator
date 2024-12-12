@@ -5,6 +5,7 @@ import (
 	corootv1 "github.io/coroot/operator/api/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 )
@@ -35,6 +36,21 @@ func (r *CorootReconciler) nodeAgentDaemonSet(cr *corootv1.Coroot) *appsv1.Daemo
 	for _, e := range cr.Spec.NodeAgent.Env {
 		env = append(env, e)
 	}
+
+	resources := cr.Spec.NodeAgent.Resources
+	if resources.Requests == nil {
+		resources.Requests = corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("100m"),
+			corev1.ResourceMemory: resource.MustParse("200Mi"),
+		}
+	}
+	if resources.Limits == nil {
+		resources.Limits = corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("500m"),
+			corev1.ResourceMemory: resource.MustParse("1Gi"),
+		}
+	}
+
 	ds.Spec = appsv1.DaemonSetSpec{
 		Selector: &metav1.LabelSelector{
 			MatchLabels: ls,
@@ -59,7 +75,7 @@ func (r *CorootReconciler) nodeAgentDaemonSet(cr *corootv1.Coroot) *appsv1.Daemo
 						},
 						SecurityContext: &corev1.SecurityContext{Privileged: ptr.To(true)},
 						Env:             env,
-						Resources:       cr.Spec.NodeAgent.Resources,
+						Resources:       resources,
 						VolumeMounts: []corev1.VolumeMount{
 							{Name: "cgroupfs", MountPath: "/host/sys/fs/cgroup", ReadOnly: true},
 							{Name: "tracefs", MountPath: "/sys/kernel/tracing"},

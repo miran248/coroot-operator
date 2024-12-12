@@ -9,6 +9,7 @@ spec:
 #    licenseKey:
 #  agentsOnly:
 #    corootUrl:
+#  replicas: 1
   nodeAgent:
   clusterAgent:
   prometheus:
