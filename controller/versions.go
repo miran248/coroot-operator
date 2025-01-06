@@ -39,6 +39,9 @@ func (r *CorootReconciler) getAppImage(cr *corootv1.Coroot, app App) string {
 			return "latest"
 		}
 	}
+	if strings.Contains(v, ":") {
+		return v
+	}
 	return fmt.Sprintf("ghcr.io/coroot/%s:%s", app, v)
 }
 

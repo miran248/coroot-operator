@@ -3,6 +3,7 @@ package v1
 import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -44,69 +45,110 @@ type NodeAgentSpec struct {
 	UpdateStrategy    appsv1.DaemonSetUpdateStrategy `json:"update_strategy,omitempty"`
 	Affinity          *corev1.Affinity               `json:"affinity,omitempty"`
 	Resources         corev1.ResourceRequirements    `json:"resources,omitempty"`
+	Tolerations       []corev1.Toleration            `json:"tolerations,omitempty"`
+	PodAnnotations    map[string]string              `json:"podAnnotations,omitempty"`
 	Env               []corev1.EnvVar                `json:"env,omitempty"`
 }
 
 type ClusterAgentSpec struct {
 	Version string `json:"version,omitempty"`
 
-	Affinity  *corev1.Affinity            `json:"affinity,omitempty"`
-	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
-	Env       []corev1.EnvVar             `json:"env,omitempty"`
+	Affinity       *corev1.Affinity            `json:"affinity,omitempty"`
+	Resources      corev1.ResourceRequirements `json:"resources,omitempty"`
+	Tolerations    []corev1.Toleration         `json:"tolerations,omitempty"`
+	PodAnnotations map[string]string           `json:"podAnnotations,omitempty"`
+	Env            []corev1.EnvVar             `json:"env,omitempty"`
 }
 
 type PrometheusSpec struct {
-	Affinity  *corev1.Affinity            `json:"affinity,omitempty"`
-	Storage   StorageSpec                 `json:"storage,omitempty"`
-	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
+	Affinity       *corev1.Affinity            `json:"affinity,omitempty"`
+	Storage        StorageSpec                 `json:"storage,omitempty"`
+	Resources      corev1.ResourceRequirements `json:"resources,omitempty"`
+	Tolerations    []corev1.Toleration         `json:"tolerations,omitempty"`
+	PodAnnotations map[string]string           `json:"podAnnotations,omitempty"`
 }
 
 type ClickhouseSpec struct {
 	Shards   int `json:"shards,omitempty"`
 	Replicas int `json:"replicas,omitempty"`
 
-	Affinity  *corev1.Affinity            `json:"affinity,omitempty"`
-	Storage   StorageSpec                 `json:"storage,omitempty"`
-	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
+	Affinity       *corev1.Affinity            `json:"affinity,omitempty"`
+	Storage        StorageSpec                 `json:"storage,omitempty"`
+	Resources      corev1.ResourceRequirements `json:"resources,omitempty"`
+	Tolerations    []corev1.Toleration         `json:"tolerations,omitempty"`
+	PodAnnotations map[string]string           `json:"podAnnotations,omitempty"`
 
 	Keeper ClickhouseKeeperSpec `json:"keeper,omitempty"`
 }
 
 type ClickhouseKeeperSpec struct {
-	Affinity  *corev1.Affinity            `json:"affinity,omitempty"`
-	Storage   StorageSpec                 `json:"storage,omitempty"`
-	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
+	Affinity       *corev1.Affinity            `json:"affinity,omitempty"`
+	Storage        StorageSpec                 `json:"storage,omitempty"`
+	Resources      corev1.ResourceRequirements `json:"resources,omitempty"`
+	Tolerations    []corev1.Toleration         `json:"tolerations,omitempty"`
+	PodAnnotations map[string]string           `json:"podAnnotations,omitempty"`
 }
 
 type ExternalClickhouseSpec struct {
-	Address  string `json:"address,omitempty"`
-	User     string `json:"user,omitempty"`
-	Password string `json:"password,omitempty"`
-	Database string `json:"database,omitempty"`
+	Address        string                    `json:"address,omitempty"`
+	User           string                    `json:"user,omitempty"`
+	Database       string                    `json:"database,omitempty"`
+	Password       string                    `json:"password,omitempty"`
+	PasswordSecret *corev1.SecretKeySelector `json:"passwordSecret,omitempty"`
 }
 
 type PostgresSpec struct {
-	ConnectionString string `json:"connectionString,omitempty"`
+	Host           string                    `json:"host,omitempty"`
+	Port           int32                     `json:"port,omitempty"`
+	User           string                    `json:"user,omitempty"`
+	Database       string                    `json:"database,omitempty"`
+	Password       string                    `json:"password,omitempty"`
+	PasswordSecret *corev1.SecretKeySelector `json:"passwordSecret,omitempty"`
+	Params         map[string]string         `json:"params,omitempty"`
+}
+
+type IngressSpec struct {
+	ClassName *string                  `json:"className,omitempty"`
+	Host      string                   `json:"host,omitempty"`
+	Path      string                   `json:"path,omitempty"`
+	TLS       *networkingv1.IngressTLS `json:"tls,omitempty"`
+}
+
+type ProjectSpec struct {
+	// +kubebuilder:validation:Required
+	Name string `json:"name,omitempty"`
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinItems=1
+	ApiKeys []ApiKeySpec `json:"apiKeys,omitempty"`
+}
+
+type ApiKeySpec struct {
+	// +kubebuilder:validation:Required
+	Key         string `json:"key,omitempty"`
+	Description string `json:"description,omitempty"`
 }
 
 type CorootSpec struct {
-	ApiKey                     string          `json:"apiKey,omitempty"`
 	MetricsRefreshInterval     metav1.Duration `json:"metricsRefreshInterval,omitempty"`
 	CacheTTL                   metav1.Duration `json:"cacheTTL,omitempty"`
 	AuthAnonymousRole          string          `json:"authAnonymousRole,omitempty"`
 	AuthBootstrapAdminPassword string          `json:"authBootstrapAdminPassword,omitempty"`
+	Projects                   []ProjectSpec   `json:"projects,omitempty"`
 	Env                        []corev1.EnvVar `json:"env,omitempty"`
 
 	CommunityEdition  CommunityEditionSpec   `json:"communityEdition,omitempty"`
 	EnterpriseEdition *EnterpriseEditionSpec `json:"enterpriseEdition,omitempty"`
 	AgentsOnly        *AgentsOnlySpec        `json:"agentsOnly,omitempty"`
 
-	Replicas  int                         `json:"replicas,omitempty"`
-	Service   ServiceSpec                 `json:"service,omitempty"`
-	Affinity  *corev1.Affinity            `json:"affinity,omitempty"`
-	Storage   StorageSpec                 `json:"storage,omitempty"`
-	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
+	Replicas       int                         `json:"replicas,omitempty"`
+	Service        ServiceSpec                 `json:"service,omitempty"`
+	Affinity       *corev1.Affinity            `json:"affinity,omitempty"`
+	Storage        StorageSpec                 `json:"storage,omitempty"`
+	Resources      corev1.ResourceRequirements `json:"resources,omitempty"`
+	Tolerations    []corev1.Toleration         `json:"tolerations,omitempty"`
+	PodAnnotations map[string]string           `json:"podAnnotations,omitempty"`
 
+	ApiKey       string           `json:"apiKey,omitempty"`
 	NodeAgent    NodeAgentSpec    `json:"nodeAgent,omitempty"`
 	ClusterAgent ClusterAgentSpec `json:"clusterAgent,omitempty"`
 
@@ -116,6 +158,8 @@ type CorootSpec struct {
 	ExternalClickhouse *ExternalClickhouseSpec `json:"externalClickhouse,omitempty"`
 
 	Postgres *PostgresSpec `json:"postgres,omitempty"`
+
+	Ingress *IngressSpec `json:"ingress,omitempty"`
 }
 
 type CorootStatus struct { // TODO

@@ -25,7 +25,7 @@ func (r *CorootReconciler) clickhouseSecret(cr *corootv1.Coroot) *corev1.Secret 
 			Namespace: cr.Namespace,
 			Labels:    ls,
 		},
-		Data: map[string][]byte{"password": []byte(GeneratePassword(16))},
+		Data: map[string][]byte{"password": []byte(RandomString(16))},
 	}
 	return s
 }
@@ -174,12 +174,14 @@ func (r *CorootReconciler) clickhouseStatefulSets(cr *corootv1.Coroot) []*appsv1
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: ls,
+					Labels:      ls,
+					Annotations: cr.Spec.Clickhouse.PodAnnotations,
 				},
 				Spec: corev1.PodSpec{
 					ServiceAccountName: cr.Name + "-clickhouse",
 					SecurityContext:    nonRootSecurityContext,
 					Affinity:           cr.Spec.Clickhouse.Affinity,
+					Tolerations:        cr.Spec.Clickhouse.Tolerations,
 					InitContainers: []corev1.Container{
 						{
 							Image:        UBIMinimalImage,
@@ -321,29 +323,29 @@ var clickhouseConfigTemplate = template.Must(template.New("").Parse(`
 
 <remote_servers>
     <default>
-        {{ range $shard := .Shards }}
+        {{- range $shard := .Shards }}
         <shard>
             <internal_replication>true</internal_replication>
-            {{ range $replica := $.Replicas }}
+            {{- range $replica := $.Replicas }}
             <replica>
                 <host>{{$.Name}}-clickhouse-shard-{{$shard}}-{{$replica}}.{{$.Name}}-clickhouse-headless.{{$.Namespace}}</host>
                 <port>9000</port>
                 <user>default</user>
                 <password from_env="CLICKHOUSE_PASSWORD"/>
             </replica>
-            {{ end }}
+            {{- end }}
         </shard>
-        {{ end }}
+        {{- end }}
     </default>
 </remote_servers>
 
 <zookeeper>
-    {{ range $keeper := .Keepers }}
+    {{- range $keeper := .Keepers }}
     <node>
         <host>{{$.Name}}-clickhouse-keeper-{{$keeper}}.{{$.Name}}-clickhouse-keeper-headless.{{$.Namespace}}</host>
         <port>9181</port>
     </node>
-    {{ end }}
+    {{- end }}
 </zookeeper>
 
 <distributed_ddl>

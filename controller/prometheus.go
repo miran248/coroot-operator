@@ -85,12 +85,14 @@ func (r *CorootReconciler) prometheusDeployment(cr *corootv1.Coroot) *appsv1.Dep
 		},
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
-				Labels: ls,
+				Labels:      ls,
+				Annotations: cr.Spec.Prometheus.PodAnnotations,
 			},
 			Spec: corev1.PodSpec{
 				ServiceAccountName: cr.Name + "-prometheus",
 				SecurityContext:    nonRootSecurityContext,
 				Affinity:           cr.Spec.Prometheus.Affinity,
+				Tolerations:        cr.Spec.Prometheus.Tolerations,
 				Containers: []corev1.Container{
 					{
 						Image:   PrometheusImage,

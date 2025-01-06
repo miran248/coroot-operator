@@ -51,6 +51,11 @@ func (r *CorootReconciler) nodeAgentDaemonSet(cr *corootv1.Coroot) *appsv1.Daemo
 		}
 	}
 
+	tolerations := cr.Spec.NodeAgent.Tolerations
+	if len(tolerations) == 0 {
+		tolerations = []corev1.Toleration{{Operator: corev1.TolerationOpExists}}
+	}
+
 	ds.Spec = appsv1.DaemonSetSpec{
 		Selector: &metav1.LabelSelector{
 			MatchLabels: ls,
@@ -58,12 +63,13 @@ func (r *CorootReconciler) nodeAgentDaemonSet(cr *corootv1.Coroot) *appsv1.Daemo
 		UpdateStrategy: cr.Spec.NodeAgent.UpdateStrategy,
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
-				Labels: ls,
+				Labels:      ls,
+				Annotations: cr.Spec.NodeAgent.PodAnnotations,
 			},
 			Spec: corev1.PodSpec{
 				ServiceAccountName: cr.Name + "-node-agent",
 				HostPID:            true,
-				Tolerations:        []corev1.Toleration{{Operator: corev1.TolerationOpExists}},
+				Tolerations:        tolerations,
 				PriorityClassName:  cr.Spec.NodeAgent.PriorityClassName,
 				Affinity:           cr.Spec.NodeAgent.Affinity,
 				Containers: []corev1.Container{

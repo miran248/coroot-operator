@@ -101,12 +101,14 @@ func (r *CorootReconciler) clusterAgentDeployment(cr *corootv1.Coroot) *appsv1.D
 		},
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
-				Labels: ls,
+				Labels:      ls,
+				Annotations: cr.Spec.ClusterAgent.PodAnnotations,
 			},
 			Spec: corev1.PodSpec{
 				ServiceAccountName: cr.Name + "-cluster-agent",
 				SecurityContext:    nonRootSecurityContext,
 				Affinity:           cr.Spec.ClusterAgent.Affinity,
+				Tolerations:        cr.Spec.ClusterAgent.Tolerations,
 				Containers: []corev1.Container{
 					{
 						Image: r.getAppImage(cr, AppClusterAgent),

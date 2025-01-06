@@ -1,7 +1,12 @@
 package controller
 
 import (
+	"bytes"
 	"fmt"
+	networkingv1 "k8s.io/api/networking/v1"
+	"k8s.io/utils/ptr"
+	"strings"
+	"text/template"
 
 	corootv1 "github.io/coroot/operator/api/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -78,6 +83,50 @@ func (r *CorootReconciler) corootPVCs(cr *corootv1.Coroot) []*corev1.PersistentV
 	return res
 }
 
+func (r *CorootReconciler) corootIngress(cr *corootv1.Coroot) *networkingv1.Ingress {
+	ls := Labels(cr, "ingress")
+	i := &networkingv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      cr.Name,
+			Namespace: cr.Namespace,
+			Labels:    ls,
+		},
+	}
+	if cr.Spec.Ingress == nil {
+		return i
+	}
+	path := cr.Spec.Ingress.Path
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	i.Spec = networkingv1.IngressSpec{
+		IngressClassName: cr.Spec.Ingress.ClassName,
+		Rules: []networkingv1.IngressRule{{
+			Host: cr.Spec.Ingress.Host,
+			IngressRuleValue: networkingv1.IngressRuleValue{
+				HTTP: &networkingv1.HTTPIngressRuleValue{
+					Paths: []networkingv1.HTTPIngressPath{{
+						Path:     path,
+						PathType: ptr.To(networkingv1.PathTypePrefix),
+						Backend: networkingv1.IngressBackend{
+							Service: &networkingv1.IngressServiceBackend{
+								Name: fmt.Sprintf("%s-coroot", cr.Name),
+								Port: networkingv1.ServiceBackendPort{
+									Name: "http",
+								},
+							},
+						},
+					}},
+				},
+			},
+		}},
+	}
+	if cr.Spec.Ingress.TLS != nil {
+		i.Spec.TLS = append(i.Spec.TLS, *cr.Spec.Ingress.TLS)
+	}
+	return i
+}
+
 func (r *CorootReconciler) corootDeployment(cr *corootv1.Coroot) *appsv1.Deployment {
 	ls := Labels(cr, "coroot")
 	d := &appsv1.Deployment{
@@ -131,13 +180,19 @@ func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot) *appsv1.Statef
 		image = r.getAppImage(cr, AppCorootCE)
 	}
 
-	if cr.Spec.ExternalClickhouse != nil {
+	if ec := cr.Spec.ExternalClickhouse; ec != nil {
 		env = append(env,
-			corev1.EnvVar{Name: "GLOBAL_CLICKHOUSE_ADDRESS", Value: cr.Spec.ExternalClickhouse.Address},
-			corev1.EnvVar{Name: "GLOBAL_CLICKHOUSE_USER", Value: cr.Spec.ExternalClickhouse.User},
-			corev1.EnvVar{Name: "GLOBAL_CLICKHOUSE_PASSWORD", Value: cr.Spec.ExternalClickhouse.Password},
-			corev1.EnvVar{Name: "GLOBAL_CLICKHOUSE_INITIAL_DATABASE", Value: cr.Spec.ExternalClickhouse.Database},
+			corev1.EnvVar{Name: "GLOBAL_CLICKHOUSE_ADDRESS", Value: ec.Address},
+			corev1.EnvVar{Name: "GLOBAL_CLICKHOUSE_USER", Value: ec.User},
+			corev1.EnvVar{Name: "GLOBAL_CLICKHOUSE_INITIAL_DATABASE", Value: ec.Database},
 		)
+		password := corev1.EnvVar{Name: "GLOBAL_CLICKHOUSE_PASSWORD"}
+		if ec.PasswordSecret != nil {
+			password.ValueFrom = &corev1.EnvVarSource{SecretKeyRef: ec.PasswordSecret}
+		} else {
+			password.Value = ec.Password
+		}
+		env = append(env, password)
 	} else {
 		env = append(env,
 			corev1.EnvVar{
@@ -146,19 +201,24 @@ func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot) *appsv1.Statef
 			},
 			corev1.EnvVar{Name: "GLOBAL_CLICKHOUSE_USER", Value: "default"},
 			corev1.EnvVar{Name: "GLOBAL_CLICKHOUSE_PASSWORD", ValueFrom: &corev1.EnvVarSource{
-				SecretKeyRef: &corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: fmt.Sprintf("%s-clickhouse", cr.Name),
-					},
-					Key: "password",
-				},
-			}},
+				SecretKeyRef: secretKeySelector(fmt.Sprintf("%s-clickhouse", cr.Name), "password")}},
 			corev1.EnvVar{Name: "GLOBAL_CLICKHOUSE_INITIAL_DATABASE", Value: "default"},
 		)
 	}
 
-	if cr.Spec.Postgres != nil && cr.Spec.Postgres.ConnectionString != "" {
-		env = append(env, corev1.EnvVar{Name: "PG_CONNECTION_STRING", Value: cr.Spec.Postgres.ConnectionString})
+	if p := cr.Spec.Postgres; p != nil {
+		password := corev1.EnvVar{Name: "PG_PASSWORD"}
+		if p.PasswordSecret != nil {
+			password.ValueFrom = &corev1.EnvVarSource{SecretKeyRef: p.PasswordSecret}
+		} else {
+			password.Value = p.Password
+		}
+		env = append(env, password)
+		env = append(env, corev1.EnvVar{Name: "PG_CONNECTION_STRING", Value: postgresConnectionString(*p, "PG_PASSWORD")})
+	}
+
+	if cr.Spec.Ingress != nil && cr.Spec.Ingress.Path != "" {
+		env = append(env, corev1.EnvVar{Name: "URL_BASE_PATH", Value: cr.Spec.Ingress.Path})
 	}
 
 	replicas := int32(cr.Spec.Replicas)
@@ -179,17 +239,29 @@ func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot) *appsv1.Statef
 		}},
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
-				Labels: ls,
+				Labels:      ls,
+				Annotations: cr.Spec.PodAnnotations,
 			},
 			Spec: corev1.PodSpec{
 				ServiceAccountName: cr.Name + "-coroot",
 				SecurityContext:    nonRootSecurityContext,
 				Affinity:           cr.Spec.Affinity,
+				Tolerations:        cr.Spec.Tolerations,
+				InitContainers: []corev1.Container{
+					{
+						Image:        UBIMinimalImage,
+						Name:         "config",
+						Command:      []string{"/bin/sh", "-c"},
+						Args:         []string{corootConfigCmd("/config/config.yaml", cr)},
+						VolumeMounts: []corev1.VolumeMount{{Name: "config", MountPath: "/config"}},
+					},
+				},
 				Containers: []corev1.Container{
 					{
 						Image: image,
 						Name:  "coroot",
 						Args: []string{
+							"--config=/config/config.yaml",
 							"--listen=:8080",
 							"--data-dir=/data",
 						},
@@ -198,6 +270,7 @@ func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot) *appsv1.Statef
 							{Name: "http", ContainerPort: 8080, Protocol: corev1.ProtocolTCP},
 						},
 						VolumeMounts: []corev1.VolumeMount{
+							{Name: "config", MountPath: "/config"},
 							{Name: "data", MountPath: "/data"},
 						},
 						Resources: cr.Spec.Resources,
@@ -208,9 +281,35 @@ func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot) *appsv1.Statef
 						},
 					},
 				},
+				Volumes: []corev1.Volume{
+					{
+						Name: "config",
+						VolumeSource: corev1.VolumeSource{
+							EmptyDir: &corev1.EmptyDirVolumeSource{},
+						},
+					},
+				},
 			},
 		},
 	}
 
 	return ss
 }
+
+func corootConfigCmd(filename string, cr *corootv1.Coroot) string {
+	var out bytes.Buffer
+	_ = corootConfigTemplate.Execute(&out, cr.Spec)
+	return "cat <<EOF > " + filename + out.String() + "EOF"
+}
+
+var corootConfigTemplate = template.Must(template.New("").Parse(`
+projects:
+{{- range $project := .Projects }}
+- name: {{ $project.Name }}
+  api_keys:
+  {{- range $key := $project.ApiKeys }}
+  - key: {{ $key.Key }}
+    description: {{ $key.Description }}
+  {{- end }}
+{{- end }}
+`))

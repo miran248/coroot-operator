@@ -101,12 +101,14 @@ func (r *CorootReconciler) clickhouseKeeperStatefulSet(cr *corootv1.Coroot) *app
 		}},
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
-				Labels: ls,
+				Labels:      ls,
+				Annotations: cr.Spec.Clickhouse.Keeper.PodAnnotations,
 			},
 			Spec: corev1.PodSpec{
 				ServiceAccountName: cr.Name + "-clickhouse-keeper",
 				SecurityContext:    nonRootSecurityContext,
 				Affinity:           cr.Spec.Clickhouse.Keeper.Affinity,
+				Tolerations:        cr.Spec.Clickhouse.Keeper.Tolerations,
 				InitContainers: []corev1.Container{
 					{
 						Image:        UBIMinimalImage,
@@ -207,13 +209,13 @@ var clickhouseKeeperConfigTemplate = template.Must(template.New("").Parse(`
     </http_control>
 
     <raft_configuration>
-        {{ range $id := .Ids }}
+        {{- range $id := .Ids }}
         <server>
             <id>{{$id}}</id>
             <hostname>{{$.Name}}-clickhouse-keeper-{{$id}}.{{$.Name}}-clickhouse-keeper-headless.{{$.Namespace}}</hostname>
             <port>9234</port>
         </server>
-        {{ end }}
+        {{- end }}
     </raft_configuration>
 </keeper_server>
 </clickhouse>

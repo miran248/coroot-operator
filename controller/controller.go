@@ -7,6 +7,7 @@ import (
 	"golang.org/x/exp/maps"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -72,6 +73,7 @@ func NewCorootReconciler(mgr ctrl.Manager) *CorootReconciler {
 // +kubebuilder:rbac:groups=apps,resources=deployments;replicasets;daemonsets;statefulsets;cronjobs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=batch,resources=cronjobs;jobs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=storage.k8s.io,resources=storageclasses;volumeattachments,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles;clusterrolebindings;roles;rolebindings,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=security.openshift.io,resources=securitycontextconstraints,verbs=use
 
@@ -117,8 +119,8 @@ func (r *CorootReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, nil
 	}
 
-	if cr.Spec.Replicas > 1 && (cr.Spec.Postgres == nil || cr.Spec.Postgres.ConnectionString == "") {
-		logger.Error(fmt.Errorf("Postgres.ConnectionString is empty"), "Coroot requires Postgres to run multiple replicas (will run only one replica)")
+	if cr.Spec.Replicas > 1 && cr.Spec.Postgres == nil {
+		logger.Error(fmt.Errorf("postgres not configured"), "Coroot requires Postgres to run multiple replicas (will run only one replica)")
 		cr.Spec.Replicas = 1
 	}
 	r.CreateOrUpdateServiceAccount(ctx, cr, "coroot", sccNonroot)
@@ -131,6 +133,7 @@ func (r *CorootReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		_ = r.Delete(ctx, r.corootDeployment(cr))
 		r.deploymentDeleted = true
 	}
+	r.CreateOrUpdateIngress(ctx, cr, r.corootIngress(cr), cr.Spec.Ingress == nil)
 
 	r.CreateOrUpdateServiceAccount(ctx, cr, "prometheus", sccNonroot)
 	r.CreateOrUpdatePVC(ctx, cr, r.prometheusPVC(cr))
@@ -163,8 +166,15 @@ func (r *CorootReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	return ctrl.Result{}, nil
 }
 
-func (r *CorootReconciler) CreateOrUpdate(ctx context.Context, cr *corootv1.Coroot, obj client.Object, f controllerutil.MutateFn) {
-	logger := ctrl.Log.WithValues("type", fmt.Sprintf("%T", obj), "name", obj.GetName(), "namespace", obj.GetNamespace())
+func (r *CorootReconciler) CreateOrUpdate(ctx context.Context, cr *corootv1.Coroot, obj client.Object, delete bool, f controllerutil.MutateFn) {
+	logger := ctrl.Log.WithValues("namespace", obj.GetNamespace(), "name", obj.GetName(), "type", fmt.Sprintf("%T", obj))
+	if delete {
+		err := r.Delete(ctx, obj)
+		if err == nil {
+			logger.Info("deleted")
+		}
+		return
+	}
 	_ = ctrl.SetControllerReference(cr, obj, r.Scheme)
 	errMsg := "failed to create or update"
 	if f == nil {
@@ -182,28 +192,28 @@ func (r *CorootReconciler) CreateOrUpdate(ctx context.Context, cr *corootv1.Coro
 }
 
 func (r *CorootReconciler) CreateSecret(ctx context.Context, cr *corootv1.Coroot, s *corev1.Secret) {
-	r.CreateOrUpdate(ctx, cr, s, nil)
+	r.CreateOrUpdate(ctx, cr, s, false, nil)
 }
 
 func (r *CorootReconciler) CreateOrUpdateDeployment(ctx context.Context, cr *corootv1.Coroot, d *appsv1.Deployment) {
 	spec := d.Spec
-	r.CreateOrUpdate(ctx, cr, d, func() error {
-		return Merge(&d.Spec, spec)
+	r.CreateOrUpdate(ctx, cr, d, false, func() error {
+		return MergeSpecs(d, &d.Spec, spec)
 	})
 }
 
 func (r *CorootReconciler) CreateOrUpdateDaemonSet(ctx context.Context, cr *corootv1.Coroot, ds *appsv1.DaemonSet) {
 	spec := ds.Spec
-	r.CreateOrUpdate(ctx, cr, ds, func() error {
-		return Merge(&ds.Spec, spec)
+	r.CreateOrUpdate(ctx, cr, ds, false, func() error {
+		return MergeSpecs(ds, &ds.Spec, spec)
 	})
 }
 
 func (r *CorootReconciler) CreateOrUpdateStatefulSet(ctx context.Context, cr *corootv1.Coroot, ss *appsv1.StatefulSet) {
 	spec := ss.Spec
-	r.CreateOrUpdate(ctx, cr, ss, func() error {
+	r.CreateOrUpdate(ctx, cr, ss, false, func() error {
 		volumeClaimTemplates := ss.Spec.VolumeClaimTemplates[:]
-		err := Merge(&ss.Spec, spec)
+		err := MergeSpecs(ss, &ss.Spec, spec)
 		ss.Spec.VolumeClaimTemplates = volumeClaimTemplates
 		return err
 	})
@@ -211,15 +221,15 @@ func (r *CorootReconciler) CreateOrUpdateStatefulSet(ctx context.Context, cr *co
 
 func (r *CorootReconciler) CreateOrUpdatePVC(ctx context.Context, cr *corootv1.Coroot, pvc *corev1.PersistentVolumeClaim) {
 	spec := pvc.Spec
-	r.CreateOrUpdate(ctx, cr, pvc, func() error {
-		return Merge(&pvc.Spec, spec)
+	r.CreateOrUpdate(ctx, cr, pvc, false, func() error {
+		return MergeSpecs(pvc, &pvc.Spec, spec)
 	})
 }
 
 func (r *CorootReconciler) CreateOrUpdateService(ctx context.Context, cr *corootv1.Coroot, s *corev1.Service) {
 	spec := s.Spec
-	r.CreateOrUpdate(ctx, cr, s, func() error {
-		err := Merge(&s.Spec, spec)
+	r.CreateOrUpdate(ctx, cr, s, false, func() error {
+		err := MergeSpecs(s, &s.Spec, spec)
 		s.Spec.Ports = spec.Ports
 		return err
 	})
@@ -231,13 +241,13 @@ func (r *CorootReconciler) CreateOrUpdateServiceAccount(ctx context.Context, cr 
 		Namespace: cr.Namespace,
 		Labels:    Labels(cr, component),
 	}}
-	r.CreateOrUpdate(ctx, cr, sa, nil)
-	r.CreateOrUpdate(ctx, cr, r.openshiftSCCRoleBinding(cr, component, scc), nil)
+	r.CreateOrUpdate(ctx, cr, sa, false, nil)
+	r.CreateOrUpdate(ctx, cr, r.openshiftSCCRoleBinding(cr, component, scc), false, nil)
 }
 
 func (r *CorootReconciler) CreateOrUpdateRole(ctx context.Context, cr *corootv1.Coroot, role *rbacv1.Role) {
 	rules := role.Rules
-	r.CreateOrUpdate(ctx, cr, role, func() error {
+	r.CreateOrUpdate(ctx, cr, role, false, func() error {
 		role.Rules = rules
 		return nil
 	})
@@ -245,14 +255,21 @@ func (r *CorootReconciler) CreateOrUpdateRole(ctx context.Context, cr *corootv1.
 
 func (r *CorootReconciler) CreateOrUpdateClusterRole(ctx context.Context, cr *corootv1.Coroot, role *rbacv1.ClusterRole) {
 	rules := role.Rules
-	r.CreateOrUpdate(ctx, cr, role, func() error {
+	r.CreateOrUpdate(ctx, cr, role, false, func() error {
 		role.Rules = rules
 		return nil
 	})
 }
 
 func (r *CorootReconciler) CreateOrUpdateClusterRoleBinding(ctx context.Context, cr *corootv1.Coroot, b *rbacv1.ClusterRoleBinding) {
-	r.CreateOrUpdate(ctx, cr, b, nil)
+	r.CreateOrUpdate(ctx, cr, b, false, nil)
+}
+
+func (r *CorootReconciler) CreateOrUpdateIngress(ctx context.Context, cr *corootv1.Coroot, i *networkingv1.Ingress, delete bool) {
+	spec := i.Spec
+	r.CreateOrUpdate(ctx, cr, i, delete, func() error {
+		return MergeSpecs(i, &i.Spec, spec)
+	})
 }
 
 func (r *CorootReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -267,6 +284,7 @@ func (r *CorootReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&rbacv1.ClusterRoleBinding{}).
 		Owns(&corev1.PersistentVolumeClaim{}).
 		Owns(&corev1.Secret{}).
+		Owns(&networkingv1.Ingress{}).
 		Complete(r)
 }
 
