@@ -55,7 +55,9 @@ func NewCorootReconciler(mgr ctrl.Manager) *CorootReconciler {
 			instances := maps.Keys(r.instances)
 			r.instancesLock.Unlock()
 			for _, i := range instances {
-				_, _ = r.Reconcile(nil, i)
+				ctx, cancel := context.WithTimeout(context.Background(), AppVersionsUpdateInterval)
+				_, _ = r.Reconcile(ctx, i)
+				cancel()
 			}
 		}
 	}()
