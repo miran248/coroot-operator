@@ -16,8 +16,11 @@ FROM registry.access.redhat.com/ubi9/ubi
 ARG VERSION=unknown
 LABEL name="coroot-operator" \
       vendor="Coroot, Inc." \
+      maintainer="Coroot, Inc." \
       version=${VERSION} \
-      summary="Coroot Operator."
+      release="1" \
+      summary="Coroot Operator." \
+      description="Coroot Operator container image."
 
 COPY LICENSE /licenses/LICENSE
 
