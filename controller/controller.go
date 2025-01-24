@@ -90,6 +90,8 @@ func (r *CorootReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			if r.instances[req] {
 				logger.Info("Coroot has been deleted")
 				delete(r.instances, req)
+			}
+			if len(r.instances) == 0 {
 				cr = &corootv1.Coroot{}
 				cr.Name = req.Name
 				cr.Namespace = req.Namespace
