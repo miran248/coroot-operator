@@ -261,6 +261,11 @@ func (in *CorootSpec) DeepCopyInto(out *CorootSpec) {
 		**out = **in
 	}
 	out.Service = in.Service
+	if in.Ingress != nil {
+		in, out := &in.Ingress, &out.Ingress
+		*out = new(IngressSpec)
+		(*in).DeepCopyInto(*out)
+	}
 	if in.Affinity != nil {
 		in, out := &in.Affinity, &out.Affinity
 		*out = new(corev1.Affinity)
@@ -294,11 +299,6 @@ func (in *CorootSpec) DeepCopyInto(out *CorootSpec) {
 	if in.Postgres != nil {
 		in, out := &in.Postgres, &out.Postgres
 		*out = new(PostgresSpec)
-		(*in).DeepCopyInto(*out)
-	}
-	if in.Ingress != nil {
-		in, out := &in.Ingress, &out.Ingress
-		*out = new(IngressSpec)
 		(*in).DeepCopyInto(*out)
 	}
 }
