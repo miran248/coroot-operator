@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+
 	corootv1 "github.io/coroot/operator/api/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -129,7 +130,7 @@ func (r *CorootReconciler) clusterAgentDeployment(cr *corootv1.Coroot) *appsv1.D
 						Args: []string{
 							"--host=127.0.0.1",
 							"--port=10302",
-							"--resources=namespaces,nodes,daemonsets,deployments,cronjobs,jobs,persistentvolumeclaims,persistentvolumes,pods,replicasets,services,statefulsets,storageclasses,volumeattachments",
+							"--resources=namespaces,nodes,daemonsets,deployments,cronjobs,jobs,persistentvolumeclaims,persistentvolumes,pods,replicasets,services,endpoints,statefulsets,storageclasses,volumeattachments",
 							"--metric-labels-allowlist=pods=[*]",
 						},
 						Resources: corev1.ResourceRequirements{
