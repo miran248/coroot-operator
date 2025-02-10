@@ -46,6 +46,8 @@ type StorageSpec struct {
 	Size resource.Quantity `json:"size,omitempty"`
 	// If not set, the default storage class will be used.
 	ClassName *string `json:"className,omitempty"`
+	// Valid options are Retain (keep PVC), or Delete (default)
+	ReclaimPolicy corev1.PersistentVolumeReclaimPolicy `json:"reclaimPolicy,omitempty"`
 }
 
 type NodeAgentSpec struct {

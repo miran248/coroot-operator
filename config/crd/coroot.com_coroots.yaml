@@ -2916,6 +2916,10 @@ spec:
                             description: If not set, the default storage class will
                               be used.
                             type: string
+                          reclaimPolicy:
+                            description: Valid options are Retain (keep PVC), or Delete
+                              (default)
+                            type: string
                           size:
                             anyOf:
                             - type: integer
@@ -3038,6 +3042,10 @@ spec:
                       className:
                         description: If not set, the default storage class will be
                           used.
+                        type: string
+                      reclaimPolicy:
+                        description: Valid options are Retain (keep PVC), or Delete
+                          (default)
                         type: string
                       size:
                         anyOf:
@@ -6779,6 +6787,10 @@ spec:
                         description: If not set, the default storage class will be
                           used.
                         type: string
+                      reclaimPolicy:
+                        description: Valid options are Retain (keep PVC), or Delete
+                          (default)
+                        type: string
                       size:
                         anyOf:
                         - type: integer
@@ -6908,6 +6920,9 @@ spec:
                 properties:
                   className:
                     description: If not set, the default storage class will be used.
+                    type: string
+                  reclaimPolicy:
+                    description: Valid options are Retain (keep PVC), or Delete (default)
                     type: string
                   size:
                     anyOf:

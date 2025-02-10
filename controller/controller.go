@@ -22,7 +22,6 @@ import (
 
 const (
 	AppVersionsUpdateInterval = time.Hour
-	UBIMinimalImage           = "registry.access.redhat.com/ubi9/ubi-minimal"
 )
 
 type CorootReconciler struct {
@@ -129,7 +128,7 @@ func (r *CorootReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 	r.CreateOrUpdateServiceAccount(ctx, cr, "coroot", sccNonroot)
 	for _, pvc := range r.corootPVCs(cr) {
-		r.CreateOrUpdatePVC(ctx, cr, pvc)
+		r.CreateOrUpdatePVC(ctx, cr, pvc, cr.Spec.Storage.ReclaimPolicy)
 	}
 	r.CreateOrUpdateStatefulSet(ctx, cr, r.corootStatefulSet(cr))
 	r.CreateOrUpdateService(ctx, cr, r.corootService(cr))
@@ -140,7 +139,7 @@ func (r *CorootReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	r.CreateOrUpdateIngress(ctx, cr, r.corootIngress(cr), cr.Spec.Ingress == nil)
 
 	r.CreateOrUpdateServiceAccount(ctx, cr, "prometheus", sccNonroot)
-	r.CreateOrUpdatePVC(ctx, cr, r.prometheusPVC(cr))
+	r.CreateOrUpdatePVC(ctx, cr, r.prometheusPVC(cr), cr.Spec.Prometheus.Storage.ReclaimPolicy)
 	r.CreateOrUpdateDeployment(ctx, cr, r.prometheusDeployment(cr))
 	r.CreateOrUpdateService(ctx, cr, r.prometheusService(cr))
 
@@ -150,14 +149,14 @@ func (r *CorootReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		r.CreateOrUpdateServiceAccount(ctx, cr, "clickhouse-keeper", sccNonroot)
 		r.CreateOrUpdateService(ctx, cr, r.clickhouseKeeperServiceHeadless(cr))
 		for _, pvc := range r.clickhouseKeeperPVCs(cr) {
-			r.CreateOrUpdatePVC(ctx, cr, pvc)
+			r.CreateOrUpdatePVC(ctx, cr, pvc, cr.Spec.Clickhouse.Keeper.Storage.ReclaimPolicy)
 		}
 		r.CreateOrUpdateStatefulSet(ctx, cr, r.clickhouseKeeperStatefulSet(cr))
 
 		r.CreateOrUpdateServiceAccount(ctx, cr, "clickhouse", sccNonroot)
 		r.CreateOrUpdateService(ctx, cr, r.clickhouseServiceHeadless(cr))
 		for _, pvc := range r.clickhousePVCs(cr) {
-			r.CreateOrUpdatePVC(ctx, cr, pvc)
+			r.CreateOrUpdatePVC(ctx, cr, pvc, cr.Spec.Clickhouse.Storage.ReclaimPolicy)
 		}
 		for _, clickhouse := range r.clickhouseStatefulSets(cr) {
 			r.CreateOrUpdateStatefulSet(ctx, cr, clickhouse)
@@ -170,7 +169,7 @@ func (r *CorootReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	return ctrl.Result{}, nil
 }
 
-func (r *CorootReconciler) CreateOrUpdate(ctx context.Context, cr *corootv1.Coroot, obj client.Object, delete bool, f controllerutil.MutateFn) {
+func (r *CorootReconciler) CreateOrUpdate(ctx context.Context, cr *corootv1.Coroot, obj client.Object, delete, retain bool, mutateF controllerutil.MutateFn) {
 	logger := ctrl.Log.WithValues("namespace", obj.GetNamespace(), "name", obj.GetName(), "type", fmt.Sprintf("%T", obj))
 	if delete {
 		err := r.Delete(ctx, obj)
@@ -179,15 +178,20 @@ func (r *CorootReconciler) CreateOrUpdate(ctx context.Context, cr *corootv1.Coro
 		}
 		return
 	}
-	_ = ctrl.SetControllerReference(cr, obj, r.Scheme)
-	errMsg := "failed to create or update"
-	if f == nil {
-		f = func() error { return nil }
-		errMsg = "failed to create"
+	f := func() error {
+		if retain {
+			_ = controllerutil.RemoveControllerReference(cr, obj, r.Scheme)
+		} else {
+			_ = controllerutil.SetControllerReference(cr, obj, r.Scheme)
+		}
+		if mutateF != nil {
+			return mutateF()
+		}
+		return nil
 	}
-	res, err := ctrl.CreateOrUpdate(ctx, r.Client, obj, f)
+	res, err := controllerutil.CreateOrUpdate(ctx, r.Client, obj, f)
 	if err != nil {
-		logger.Error(err, errMsg)
+		logger.Error(err, "failed to create or update")
 		return
 	}
 	if res != controllerutil.OperationResultNone {
@@ -196,26 +200,26 @@ func (r *CorootReconciler) CreateOrUpdate(ctx context.Context, cr *corootv1.Coro
 }
 
 func (r *CorootReconciler) CreateSecret(ctx context.Context, cr *corootv1.Coroot, s *corev1.Secret) {
-	r.CreateOrUpdate(ctx, cr, s, false, nil)
+	r.CreateOrUpdate(ctx, cr, s, false, false, nil)
 }
 
 func (r *CorootReconciler) CreateOrUpdateDeployment(ctx context.Context, cr *corootv1.Coroot, d *appsv1.Deployment) {
 	spec := d.Spec
-	r.CreateOrUpdate(ctx, cr, d, false, func() error {
+	r.CreateOrUpdate(ctx, cr, d, false, false, func() error {
 		return MergeSpecs(d, &d.Spec, spec, nil)
 	})
 }
 
 func (r *CorootReconciler) CreateOrUpdateDaemonSet(ctx context.Context, cr *corootv1.Coroot, ds *appsv1.DaemonSet) {
 	spec := ds.Spec
-	r.CreateOrUpdate(ctx, cr, ds, false, func() error {
+	r.CreateOrUpdate(ctx, cr, ds, false, false, func() error {
 		return MergeSpecs(ds, &ds.Spec, spec, nil)
 	})
 }
 
 func (r *CorootReconciler) CreateOrUpdateStatefulSet(ctx context.Context, cr *corootv1.Coroot, ss *appsv1.StatefulSet) {
 	spec := ss.Spec
-	r.CreateOrUpdate(ctx, cr, ss, false, func() error {
+	r.CreateOrUpdate(ctx, cr, ss, false, false, func() error {
 		volumeClaimTemplates := ss.Spec.VolumeClaimTemplates[:]
 		err := MergeSpecs(ss, &ss.Spec, spec, nil)
 		ss.Spec.VolumeClaimTemplates = volumeClaimTemplates
@@ -223,16 +227,17 @@ func (r *CorootReconciler) CreateOrUpdateStatefulSet(ctx context.Context, cr *co
 	})
 }
 
-func (r *CorootReconciler) CreateOrUpdatePVC(ctx context.Context, cr *corootv1.Coroot, pvc *corev1.PersistentVolumeClaim) {
+func (r *CorootReconciler) CreateOrUpdatePVC(ctx context.Context, cr *corootv1.Coroot, pvc *corev1.PersistentVolumeClaim, reclaimPolicy corev1.PersistentVolumeReclaimPolicy) {
 	spec := pvc.Spec
-	r.CreateOrUpdate(ctx, cr, pvc, false, func() error {
+	retain := reclaimPolicy == corev1.PersistentVolumeReclaimRetain
+	r.CreateOrUpdate(ctx, cr, pvc, false, retain, func() error {
 		return MergeSpecs(pvc, &pvc.Spec, spec, nil)
 	})
 }
 
 func (r *CorootReconciler) CreateOrUpdateService(ctx context.Context, cr *corootv1.Coroot, s *corev1.Service) {
 	spec := s.Spec
-	r.CreateOrUpdate(ctx, cr, s, false, func() error {
+	r.CreateOrUpdate(ctx, cr, s, false, false, func() error {
 		err := MergeSpecs(s, &s.Spec, spec, nil)
 		s.Spec.Ports = spec.Ports
 		return err
@@ -245,13 +250,13 @@ func (r *CorootReconciler) CreateOrUpdateServiceAccount(ctx context.Context, cr 
 		Namespace: cr.Namespace,
 		Labels:    Labels(cr, component),
 	}}
-	r.CreateOrUpdate(ctx, cr, sa, false, nil)
-	r.CreateOrUpdate(ctx, cr, r.openshiftSCCRoleBinding(cr, component, scc), false, nil)
+	r.CreateOrUpdate(ctx, cr, sa, false, false, nil)
+	r.CreateOrUpdate(ctx, cr, r.openshiftSCCRoleBinding(cr, component, scc), false, false, nil)
 }
 
 func (r *CorootReconciler) CreateOrUpdateRole(ctx context.Context, cr *corootv1.Coroot, role *rbacv1.Role) {
 	rules := role.Rules
-	r.CreateOrUpdate(ctx, cr, role, false, func() error {
+	r.CreateOrUpdate(ctx, cr, role, false, false, func() error {
 		role.Rules = rules
 		return nil
 	})
@@ -259,14 +264,14 @@ func (r *CorootReconciler) CreateOrUpdateRole(ctx context.Context, cr *corootv1.
 
 func (r *CorootReconciler) CreateOrUpdateClusterRole(ctx context.Context, cr *corootv1.Coroot, role *rbacv1.ClusterRole) {
 	rules := role.Rules
-	r.CreateOrUpdate(ctx, cr, role, false, func() error {
+	r.CreateOrUpdate(ctx, cr, role, false, true, func() error {
 		role.Rules = rules
 		return nil
 	})
 }
 
 func (r *CorootReconciler) CreateOrUpdateClusterRoleBinding(ctx context.Context, cr *corootv1.Coroot, b *rbacv1.ClusterRoleBinding) {
-	r.CreateOrUpdate(ctx, cr, b, false, nil)
+	r.CreateOrUpdate(ctx, cr, b, false, true, nil)
 }
 
 func (r *CorootReconciler) CreateOrUpdateIngress(ctx context.Context, cr *corootv1.Coroot, i *networkingv1.Ingress, delete bool) {

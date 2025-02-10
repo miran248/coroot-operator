@@ -250,7 +250,7 @@ func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot) *appsv1.Statef
 				Tolerations:        cr.Spec.Tolerations,
 				InitContainers: []corev1.Container{
 					{
-						Image:        UBIMinimalImage,
+						Image:        image,
 						Name:         "config",
 						Command:      []string{"/bin/sh", "-c"},
 						Args:         []string{corootConfigCmd("/config/config.yaml", cr)},

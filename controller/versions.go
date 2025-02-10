@@ -36,7 +36,7 @@ func (r *CorootReconciler) getAppImage(cr *corootv1.Coroot, app App) string {
 		defer r.versionsLock.Unlock()
 		v = r.versions[app]
 		if v == "" {
-			return "latest"
+			v = "latest"
 		}
 	}
 	if strings.Contains(v, ":") {
