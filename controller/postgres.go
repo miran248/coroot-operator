@@ -2,9 +2,10 @@ package controller
 
 import (
 	"fmt"
-	corootv1 "github.io/coroot/operator/api/v1"
 	"sort"
 	"strings"
+
+	corootv1 "github.io/coroot/operator/api/v1"
 )
 
 func postgresConnectionString(p corootv1.PostgresSpec, passwordEnvVar string) string {

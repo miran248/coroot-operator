@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+
 	corootv1 "github.io/coroot/operator/api/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -11,7 +12,6 @@ import (
 )
 
 const (
-	PrometheusImage            = "ghcr.io/coroot/prometheus:2.55.1-ubi9-0"
 	PrometheusDefaultRetention = "2d"
 )
 
@@ -82,6 +82,8 @@ func (r *CorootReconciler) prometheusDeployment(cr *corootv1.Coroot) *appsv1.Dep
 		retention = cr.Spec.Prometheus.Retention
 	}
 
+	image := r.getAppImage(cr, AppPrometheus)
+
 	d.Spec = appsv1.DeploymentSpec{
 		Selector: &metav1.LabelSelector{
 			MatchLabels: ls,
@@ -99,11 +101,13 @@ func (r *CorootReconciler) prometheusDeployment(cr *corootv1.Coroot) *appsv1.Dep
 				SecurityContext:    nonRootSecurityContext,
 				Affinity:           cr.Spec.Prometheus.Affinity,
 				Tolerations:        cr.Spec.Prometheus.Tolerations,
+				ImagePullSecrets:   image.PullSecrets,
 				Containers: []corev1.Container{
 					{
-						Image:   PrometheusImage,
-						Name:    "prometheus",
-						Command: []string{"prometheus"},
+						Image:           image.Name,
+						ImagePullPolicy: image.PullPolicy,
+						Name:            "prometheus",
+						Command:         []string{"prometheus"},
 						Args: []string{
 							"--config.file=/etc/prometheus/prometheus.yml",
 							"--web.listen-address=0.0.0.0:9090",

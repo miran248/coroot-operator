@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+
 	corootv1 "github.io/coroot/operator/api/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -56,6 +57,8 @@ func (r *CorootReconciler) nodeAgentDaemonSet(cr *corootv1.Coroot) *appsv1.Daemo
 		tolerations = []corev1.Toleration{{Operator: corev1.TolerationOpExists}}
 	}
 
+	image := r.getAppImage(cr, AppNodeAgent)
+
 	ds.Spec = appsv1.DaemonSetSpec{
 		Selector: &metav1.LabelSelector{
 			MatchLabels: ls,
@@ -72,10 +75,12 @@ func (r *CorootReconciler) nodeAgentDaemonSet(cr *corootv1.Coroot) *appsv1.Daemo
 				Tolerations:        tolerations,
 				PriorityClassName:  cr.Spec.NodeAgent.PriorityClassName,
 				Affinity:           cr.Spec.NodeAgent.Affinity,
+				ImagePullSecrets:   image.PullSecrets,
 				Containers: []corev1.Container{
 					{
-						Name:  "node-agent",
-						Image: r.getAppImage(cr, AppNodeAgent),
+						Name:            "node-agent",
+						Image:           image.Name,
+						ImagePullPolicy: image.PullPolicy,
 						Args: []string{
 							"--cgroupfs-root=/host/sys/fs/cgroup",
 						},

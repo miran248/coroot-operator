@@ -3,17 +3,17 @@ package controller
 import (
 	"bytes"
 	"fmt"
-	networkingv1 "k8s.io/api/networking/v1"
-	"k8s.io/utils/ptr"
 	"strings"
 	"text/template"
 
 	corootv1 "github.io/coroot/operator/api/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/ptr"
 )
 
 func (r *CorootReconciler) corootService(cr *corootv1.Coroot) *corev1.Service {
@@ -173,12 +173,10 @@ func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot) *appsv1.Statef
 		env = append(env, e)
 	}
 
-	var image string
+	image := r.getAppImage(cr, AppCorootCE)
 	if cr.Spec.EnterpriseEdition != nil {
 		image = r.getAppImage(cr, AppCorootEE)
 		env = append(env, corev1.EnvVar{Name: "LICENSE_KEY", Value: cr.Spec.EnterpriseEdition.LicenseKey})
-	} else {
-		image = r.getAppImage(cr, AppCorootCE)
 	}
 
 	if ec := cr.Spec.ExternalClickhouse; ec != nil {
@@ -248,19 +246,22 @@ func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot) *appsv1.Statef
 				SecurityContext:    nonRootSecurityContext,
 				Affinity:           cr.Spec.Affinity,
 				Tolerations:        cr.Spec.Tolerations,
+				ImagePullSecrets:   image.PullSecrets,
 				InitContainers: []corev1.Container{
 					{
-						Image:        image,
-						Name:         "config",
-						Command:      []string{"/bin/sh", "-c"},
-						Args:         []string{corootConfigCmd("/config/config.yaml", cr)},
-						VolumeMounts: []corev1.VolumeMount{{Name: "config", MountPath: "/config"}},
+						Image:           image.Name,
+						ImagePullPolicy: image.PullPolicy,
+						Name:            "config",
+						Command:         []string{"/bin/sh", "-c"},
+						Args:            []string{corootConfigCmd("/config/config.yaml", cr)},
+						VolumeMounts:    []corev1.VolumeMount{{Name: "config", MountPath: "/config"}},
 					},
 				},
 				Containers: []corev1.Container{
 					{
-						Image: image,
-						Name:  "coroot",
+						Image:           image.Name,
+						ImagePullPolicy: image.PullPolicy,
+						Name:            "coroot",
 						Args: []string{
 							"--config=/config/config.yaml",
 							"--listen=:8080",

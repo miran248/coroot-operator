@@ -10,10 +10,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const (
-	KubeStateMetricsImage = "ghcr.io/coroot/kube-state-metrics:2.15.0-ubi9-0"
-)
-
 func (r *CorootReconciler) clusterAgentClusterRoleBinding(cr *corootv1.Coroot) *rbacv1.ClusterRoleBinding {
 	b := &rbacv1.ClusterRoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
@@ -96,6 +92,8 @@ func (r *CorootReconciler) clusterAgentDeployment(cr *corootv1.Coroot) *appsv1.D
 	for _, e := range cr.Spec.ClusterAgent.Env {
 		env = append(env, e)
 	}
+	image := r.getAppImage(cr, AppClusterAgent)
+	ksmImage := r.getAppImage(cr, AppKubeStateMetrics)
 	d.Spec = appsv1.DeploymentSpec{
 		Selector: &metav1.LabelSelector{
 			MatchLabels: ls,
@@ -110,10 +108,12 @@ func (r *CorootReconciler) clusterAgentDeployment(cr *corootv1.Coroot) *appsv1.D
 				SecurityContext:    nonRootSecurityContext,
 				Affinity:           cr.Spec.ClusterAgent.Affinity,
 				Tolerations:        cr.Spec.ClusterAgent.Tolerations,
+				ImagePullSecrets:   image.PullSecrets,
 				Containers: []corev1.Container{
 					{
-						Image: r.getAppImage(cr, AppClusterAgent),
-						Name:  "cluster-agent",
+						Image:           image.Name,
+						ImagePullPolicy: image.PullPolicy,
+						Name:            "cluster-agent",
 						Args: []string{
 							"--listen=127.0.0.1:10301",
 							"--metrics-wal-dir=/tmp",
@@ -125,8 +125,9 @@ func (r *CorootReconciler) clusterAgentDeployment(cr *corootv1.Coroot) *appsv1.D
 						Env: env,
 					},
 					{
-						Image: KubeStateMetricsImage,
-						Name:  "kube-state-metrics",
+						Image:           ksmImage.Name,
+						ImagePullPolicy: ksmImage.PullPolicy,
+						Name:            "kube-state-metrics",
 						Args: []string{
 							"--host=127.0.0.1",
 							"--port=10302",

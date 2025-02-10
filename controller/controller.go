@@ -3,6 +3,9 @@ package controller
 import (
 	"context"
 	"fmt"
+	"sync"
+	"time"
+
 	corootv1 "github.io/coroot/operator/api/v1"
 	"golang.org/x/exp/maps"
 	appsv1 "k8s.io/api/apps/v1"
@@ -16,8 +19,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sync"
-	"time"
 )
 
 const (

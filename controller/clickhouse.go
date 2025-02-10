@@ -3,17 +3,17 @@ package controller
 import (
 	"bytes"
 	"fmt"
+	"text/template"
+
 	corootv1 "github.io/coroot/operator/api/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"text/template"
 )
 
 const (
-	ClickhouseImage          = "ghcr.io/coroot/clickhouse:25.1.3-ubi9-0"
 	ClickhouseKeeperReplicas = 3
 )
 
@@ -148,6 +148,8 @@ func (r *CorootReconciler) clickhouseStatefulSets(cr *corootv1.Coroot) []*appsv1
 		replicas = 1
 	}
 
+	image := r.getAppImage(cr, AppClickhouse)
+
 	var res []*appsv1.StatefulSet
 	for shard := 0; shard < shards; shard++ {
 		ss := &appsv1.StatefulSet{
@@ -182,20 +184,23 @@ func (r *CorootReconciler) clickhouseStatefulSets(cr *corootv1.Coroot) []*appsv1
 					SecurityContext:    nonRootSecurityContext,
 					Affinity:           cr.Spec.Clickhouse.Affinity,
 					Tolerations:        cr.Spec.Clickhouse.Tolerations,
+					ImagePullSecrets:   image.PullSecrets,
 					InitContainers: []corev1.Container{
 						{
-							Image:        ClickhouseImage,
-							Name:         "config",
-							Command:      []string{"/bin/sh", "-c"},
-							Args:         []string{clickhouseConfigCmd("/config/config.xml", cr, shards, int(replicas), ClickhouseKeeperReplicas)},
-							VolumeMounts: []corev1.VolumeMount{{Name: "config", MountPath: "/config"}},
+							Image:           image.Name,
+							ImagePullPolicy: image.PullPolicy,
+							Name:            "config",
+							Command:         []string{"/bin/sh", "-c"},
+							Args:            []string{clickhouseConfigCmd("/config/config.xml", cr, shards, int(replicas), ClickhouseKeeperReplicas)},
+							VolumeMounts:    []corev1.VolumeMount{{Name: "config", MountPath: "/config"}},
 						},
 					},
 					Containers: []corev1.Container{
 						{
-							Image:   ClickhouseImage,
-							Name:    "clickhouse-server",
-							Command: []string{"clickhouse-server"},
+							Image:           image.Name,
+							ImagePullPolicy: image.PullPolicy,
+							Name:            "clickhouse-server",
+							Command:         []string{"clickhouse-server"},
 							Args: []string{
 								"--config-file=/config/config.xml",
 							},

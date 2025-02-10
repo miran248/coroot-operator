@@ -3,46 +3,64 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
-	corootv1 "github.io/coroot/operator/api/v1"
 	"io"
 	"net/http"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 	"strings"
+
+	corootv1 "github.io/coroot/operator/api/v1"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+)
+
+const (
+	CorootImageRegistry = "ghcr.io/coroot"
+
+	ClickhouseImage       = "clickhouse:25.1.3-ubi9-0"
+	PrometheusImage       = "prometheus:2.55.1-ubi9-0"
+	KubeStateMetricsImage = "kube-state-metrics:2.15.0-ubi9-0"
 )
 
 type App string
 
 const (
-	AppCorootCE     App = "coroot"
-	AppCorootEE     App = "coroot-ee"
-	AppNodeAgent    App = "coroot-node-agent"
-	AppClusterAgent App = "coroot-cluster-agent"
+	AppCorootCE         App = "coroot"
+	AppCorootEE         App = "coroot-ee"
+	AppNodeAgent        App = "coroot-node-agent"
+	AppClusterAgent     App = "coroot-cluster-agent"
+	AppClickhouse       App = "clickhouse"
+	AppClickhouseKeeper App = "clickhouse-keeper"
+	AppPrometheus       App = "prometheus"
+	AppKubeStateMetrics App = "kube-state-metrics"
 )
 
-func (r *CorootReconciler) getAppImage(cr *corootv1.Coroot, app App) string {
-	var v string
+func (r *CorootReconciler) getAppImage(cr *corootv1.Coroot, app App) corootv1.ImageSpec {
+	var image corootv1.ImageSpec
 	switch app {
 	case AppCorootCE:
-		v = cr.Spec.CommunityEdition.Version
+		image = cr.Spec.CommunityEdition.Image
 	case AppCorootEE:
-		v = cr.Spec.EnterpriseEdition.Version
+		image = cr.Spec.EnterpriseEdition.Image
 	case AppNodeAgent:
-		v = cr.Spec.NodeAgent.Version
+		image = cr.Spec.NodeAgent.Image
 	case AppClusterAgent:
-		v = cr.Spec.ClusterAgent.Version
+		image = cr.Spec.ClusterAgent.Image
+	case AppKubeStateMetrics:
+		image = cr.Spec.ClusterAgent.KubeStateMetrics.Image
+	case AppClickhouse:
+		image = cr.Spec.Clickhouse.Image
+	case AppClickhouseKeeper:
+		image = cr.Spec.Clickhouse.Keeper.Image
+	case AppPrometheus:
+		image = cr.Spec.Prometheus.Image
 	}
-	if v == "" {
-		r.versionsLock.Lock()
-		defer r.versionsLock.Unlock()
-		v = r.versions[app]
-		if v == "" {
-			v = "latest"
-		}
+
+	if image.Name != "" {
+		return image
 	}
-	if strings.Contains(v, ":") {
-		return v
-	}
-	return fmt.Sprintf("ghcr.io/coroot/%s:%s", app, v)
+
+	r.versionsLock.Lock()
+	defer r.versionsLock.Unlock()
+	image.Name = r.versions[app]
+	return image
 }
 
 func (r *CorootReconciler) fetchAppVersions() {
@@ -53,15 +71,23 @@ func (r *CorootReconciler) fetchAppVersions() {
 		if err != nil {
 			logger.Error(err, "failed to get version", "app", app)
 		}
+		if v == "" {
+			v = "latest"
+		}
 		versions[app] = v
 	}
 	logger.Info(fmt.Sprintf("got app versions: %v", versions))
 	r.versionsLock.Lock()
 	defer r.versionsLock.Unlock()
 	for app, v := range versions {
-		if v != "" {
-			r.versions[app] = v
-		}
+		r.versions[app] = fmt.Sprintf("%s:%s", app, v)
+	}
+	r.versions[AppClickhouse] = ClickhouseImage
+	r.versions[AppClickhouseKeeper] = ClickhouseImage
+	r.versions[AppPrometheus] = PrometheusImage
+	r.versions[AppKubeStateMetrics] = KubeStateMetricsImage
+	for app, image := range r.versions {
+		r.versions[app] = CorootImageRegistry + "/" + image
 	}
 }
 

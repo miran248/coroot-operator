@@ -3,13 +3,14 @@ package controller
 import (
 	"bytes"
 	"fmt"
+	"text/template"
+
 	corootv1 "github.io/coroot/operator/api/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"text/template"
 )
 
 func (r *CorootReconciler) clickhouseKeeperServiceHeadless(cr *corootv1.Coroot) *corev1.Service {
@@ -87,6 +88,9 @@ func (r *CorootReconciler) clickhouseKeeperStatefulSet(cr *corootv1.Coroot) *app
 	}
 
 	replicas := int32(ClickhouseKeeperReplicas)
+
+	image := r.getAppImage(cr, AppClickhouseKeeper)
+
 	ss.Spec = appsv1.StatefulSetSpec{
 		Selector: &metav1.LabelSelector{
 			MatchLabels: ls,
@@ -109,20 +113,23 @@ func (r *CorootReconciler) clickhouseKeeperStatefulSet(cr *corootv1.Coroot) *app
 				SecurityContext:    nonRootSecurityContext,
 				Affinity:           cr.Spec.Clickhouse.Keeper.Affinity,
 				Tolerations:        cr.Spec.Clickhouse.Keeper.Tolerations,
+				ImagePullSecrets:   image.PullSecrets,
 				InitContainers: []corev1.Container{
 					{
-						Image:        ClickhouseImage,
-						Name:         "config",
-						Command:      []string{"/bin/sh", "-c"},
-						Args:         []string{clickhouseKeeperConfigCmd("/config/config.xml", cr, int(replicas))},
-						VolumeMounts: []corev1.VolumeMount{{Name: "config", MountPath: "/config"}},
+						Image:           image.Name,
+						ImagePullPolicy: image.PullPolicy,
+						Name:            "config",
+						Command:         []string{"/bin/sh", "-c"},
+						Args:            []string{clickhouseKeeperConfigCmd("/config/config.xml", cr, int(replicas))},
+						VolumeMounts:    []corev1.VolumeMount{{Name: "config", MountPath: "/config"}},
 					},
 				},
 				Containers: []corev1.Container{
 					{
-						Image:   ClickhouseImage,
-						Name:    "clickhouse-keeper",
-						Command: []string{"clickhouse-keeper"},
+						Image:           image.Name,
+						ImagePullPolicy: image.PullPolicy,
+						Name:            "clickhouse-keeper",
+						Command:         []string{"clickhouse-keeper"},
 						Args: []string{
 							"--config-file=/config/config.xml",
 						},

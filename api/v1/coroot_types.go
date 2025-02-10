@@ -15,16 +15,14 @@ const (
 )
 
 type CommunityEditionSpec struct {
-	// If unspecified, the operator will automatically update Coroot CE to the latest version.
-	Version string `json:"version,omitempty"`
+	Image ImageSpec `json:"image,omitempty"`
 }
 
 type EnterpriseEditionSpec struct {
-	// If unspecified, the operator will automatically update Coroot EE to the latest version.
-	Version string `json:"version,omitempty"`
 	// License key for Coroot Enterprise Edition.
 	// You can get the Coroot Enterprise license and start a free trial anytime through the Coroot Customer Portal: https://coroot.com/account.
-	LicenseKey string `json:"licenseKey,omitempty"`
+	LicenseKey string    `json:"licenseKey,omitempty"`
+	Image      ImageSpec `json:"image,omitempty"`
 }
 
 type AgentsOnlySpec struct {
@@ -51,9 +49,6 @@ type StorageSpec struct {
 }
 
 type NodeAgentSpec struct {
-	// If unspecified, the operator will automatically update the node-agent to the latest version.
-	Version string `json:"version,omitempty"`
-
 	// Priority class for the node-agent pods.
 	PriorityClassName string                         `json:"priorityClassName,omitempty"`
 	UpdateStrategy    appsv1.DaemonSetUpdateStrategy `json:"update_strategy,omitempty"`
@@ -63,20 +58,25 @@ type NodeAgentSpec struct {
 	// Annotations for node-agent pods.
 	PodAnnotations map[string]string `json:"podAnnotations,omitempty"`
 	// Environment variables for the node-agent.
-	Env []corev1.EnvVar `json:"env,omitempty"`
+	Env   []corev1.EnvVar `json:"env,omitempty"`
+	Image ImageSpec       `json:"image,omitempty"`
 }
 
 type ClusterAgentSpec struct {
-	// If unspecified, the operator will automatically update the cluster-agent to the latest version.
-	Version string `json:"version,omitempty"`
-
 	Affinity    *corev1.Affinity            `json:"affinity,omitempty"`
 	Resources   corev1.ResourceRequirements `json:"resources,omitempty"`
 	Tolerations []corev1.Toleration         `json:"tolerations,omitempty"`
 	// Annotations for cluster-agent pods.
 	PodAnnotations map[string]string `json:"podAnnotations,omitempty"`
 	// Environment variables for the cluster-agent.
-	Env []corev1.EnvVar `json:"env,omitempty"`
+	Env   []corev1.EnvVar `json:"env,omitempty"`
+	Image ImageSpec       `json:"image,omitempty"`
+
+	KubeStateMetrics KubeStateMetricsSpec `json:"kubeStateMetrics,omitempty"`
+}
+
+type KubeStateMetricsSpec struct {
+	Image ImageSpec `json:"image,omitempty"`
 }
 
 type PrometheusSpec struct {
@@ -88,7 +88,8 @@ type PrometheusSpec struct {
 	PodAnnotations map[string]string `json:"podAnnotations,omitempty"`
 	// Metrics retention time (e.g. 4h, 3d, 2w, 1y; default 2d)
 	// +kubebuilder:validation:Pattern=^\d+[mhdwy]$
-	Retention string `json:"retention,omitempty"`
+	Retention string    `json:"retention,omitempty"`
+	Image     ImageSpec `json:"image,omitempty"`
 }
 
 type ClickhouseSpec struct {
@@ -102,6 +103,7 @@ type ClickhouseSpec struct {
 	Tolerations []corev1.Toleration         `json:"tolerations,omitempty"`
 	// Annotations for clickhouse pods.
 	PodAnnotations map[string]string `json:"podAnnotations,omitempty"`
+	Image          ImageSpec         `json:"image,omitempty"`
 
 	Keeper ClickhouseKeeperSpec `json:"keeper,omitempty"`
 }
@@ -114,6 +116,7 @@ type ClickhouseKeeperSpec struct {
 	Tolerations []corev1.Toleration         `json:"tolerations,omitempty"`
 	// Annotations for clickhouse-keeper pods.
 	PodAnnotations map[string]string `json:"podAnnotations,omitempty"`
+	Image          ImageSpec         `json:"image,omitempty"`
 }
 
 type ExternalClickhouseSpec struct {
@@ -156,6 +159,18 @@ type IngressSpec struct {
 	TLS  *networkingv1.IngressTLS `json:"tls,omitempty"`
 	// Annotations for Ingress.
 	Annotations map[string]string `json:"annotations,omitempty"`
+}
+
+// ImageSpec defines the configuration for specifying an image repository, tag, pull policy, and pull secrets.
+// If unspecified, the operator will automatically update its components to the latest versions from Coroot's public registry.
+type ImageSpec struct {
+	// Name specifies the full image reference, including registry, component, and tag.
+	// E.g.: <private-registry>/<component-name>:<component-version>
+	Name string `json:"name,omitempty"`
+	// PullPolicy defines the image pull policy (e.g., Always, IfNotPresent, Never).
+	PullPolicy corev1.PullPolicy `json:"pullPolicy,omitempty"`
+	// PullSecrets contains a list of references to Kubernetes secrets used for pulling the image from a private registry.
+	PullSecrets []corev1.LocalObjectReference `json:"pullSecrets,omitempty"`
 }
 
 type ProjectSpec struct {
