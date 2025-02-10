@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	PrometheusImage = "ghcr.io/coroot/prometheus:2.54.1-ubi9-0"
+	PrometheusImage = "ghcr.io/coroot/prometheus:2.55.1-ubi9-0"
 )
 
 func (r *CorootReconciler) prometheusService(cr *corootv1.Coroot) *corev1.Service {
