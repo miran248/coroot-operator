@@ -202,14 +202,14 @@ func (r *CorootReconciler) CreateSecret(ctx context.Context, cr *corootv1.Coroot
 func (r *CorootReconciler) CreateOrUpdateDeployment(ctx context.Context, cr *corootv1.Coroot, d *appsv1.Deployment) {
 	spec := d.Spec
 	r.CreateOrUpdate(ctx, cr, d, false, func() error {
-		return MergeSpecs(d, &d.Spec, spec)
+		return MergeSpecs(d, &d.Spec, spec, nil)
 	})
 }
 
 func (r *CorootReconciler) CreateOrUpdateDaemonSet(ctx context.Context, cr *corootv1.Coroot, ds *appsv1.DaemonSet) {
 	spec := ds.Spec
 	r.CreateOrUpdate(ctx, cr, ds, false, func() error {
-		return MergeSpecs(ds, &ds.Spec, spec)
+		return MergeSpecs(ds, &ds.Spec, spec, nil)
 	})
 }
 
@@ -217,7 +217,7 @@ func (r *CorootReconciler) CreateOrUpdateStatefulSet(ctx context.Context, cr *co
 	spec := ss.Spec
 	r.CreateOrUpdate(ctx, cr, ss, false, func() error {
 		volumeClaimTemplates := ss.Spec.VolumeClaimTemplates[:]
-		err := MergeSpecs(ss, &ss.Spec, spec)
+		err := MergeSpecs(ss, &ss.Spec, spec, nil)
 		ss.Spec.VolumeClaimTemplates = volumeClaimTemplates
 		return err
 	})
@@ -226,14 +226,14 @@ func (r *CorootReconciler) CreateOrUpdateStatefulSet(ctx context.Context, cr *co
 func (r *CorootReconciler) CreateOrUpdatePVC(ctx context.Context, cr *corootv1.Coroot, pvc *corev1.PersistentVolumeClaim) {
 	spec := pvc.Spec
 	r.CreateOrUpdate(ctx, cr, pvc, false, func() error {
-		return MergeSpecs(pvc, &pvc.Spec, spec)
+		return MergeSpecs(pvc, &pvc.Spec, spec, nil)
 	})
 }
 
 func (r *CorootReconciler) CreateOrUpdateService(ctx context.Context, cr *corootv1.Coroot, s *corev1.Service) {
 	spec := s.Spec
 	r.CreateOrUpdate(ctx, cr, s, false, func() error {
-		err := MergeSpecs(s, &s.Spec, spec)
+		err := MergeSpecs(s, &s.Spec, spec, nil)
 		s.Spec.Ports = spec.Ports
 		return err
 	})
@@ -271,8 +271,9 @@ func (r *CorootReconciler) CreateOrUpdateClusterRoleBinding(ctx context.Context,
 
 func (r *CorootReconciler) CreateOrUpdateIngress(ctx context.Context, cr *corootv1.Coroot, i *networkingv1.Ingress, delete bool) {
 	spec := i.Spec
-	r.CreateOrUpdate(ctx, cr, i, delete, func() error {
-		return MergeSpecs(i, &i.Spec, spec)
+	annotations := i.ObjectMeta.Annotations
+	r.CreateOrUpdate(ctx, cr, i, delete, false, func() error {
+		return MergeSpecs(i, &i.Spec, spec, annotations)
 	})
 }
 

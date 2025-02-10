@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	LastAppliedAnnotation = "operator.coroot.com/last-applied-configuration"
-	RandomStringCharset   = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	AnnotationLastAppliedConfiguration = "operator.coroot.com/last-applied-configuration"
+	RandomStringCharset                = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 )
 
 func RandomString(length int) string {
@@ -25,7 +25,12 @@ func RandomString(length int) string {
 	return string(res)
 }
 
-func MergeSpecs[T any](obj client.Object, currentSpec *T, targetSpec T) error {
+type LastAppliedConfiguration struct {
+	Annotations map[string]string `json:"annotations,omitempty"`
+	Spec        json.RawMessage   `json:"spec,omitempty"`
+}
+
+func MergeSpecs[T any](obj client.Object, currentSpec *T, targetSpec T, targetAnnotations map[string]string) error {
 	annotations := obj.GetAnnotations()
 	if annotations == nil {
 		annotations = map[string]string{}
@@ -40,8 +45,27 @@ func MergeSpecs[T any](obj client.Object, currentSpec *T, targetSpec T) error {
 		return fmt.Errorf("failed to marshal target: %w", err)
 	}
 
-	original := []byte(annotations[LastAppliedAnnotation])
-	annotations[LastAppliedAnnotation] = string(target)
+	var original []byte
+	lastApplied := []byte(annotations[AnnotationLastAppliedConfiguration])
+	var cfg LastAppliedConfiguration
+	if err = json.Unmarshal(lastApplied, &cfg); err != nil {
+		original = lastApplied
+	} else {
+		original = cfg.Spec
+		for k := range cfg.Annotations {
+			delete(annotations, k)
+		}
+	}
+	for k, v := range targetAnnotations {
+		annotations[k] = v
+	}
+	cfg.Annotations = targetAnnotations
+	cfg.Spec = target
+	lastApplied, err = json.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to marshal last applied: %w", err)
+	}
+	annotations[AnnotationLastAppliedConfiguration] = string(lastApplied)
 	obj.SetAnnotations(annotations)
 
 	patchMeta, err := strategicpatch.NewPatchMetaFromStruct(currentSpec)

@@ -95,6 +95,7 @@ func (r *CorootReconciler) corootIngress(cr *corootv1.Coroot) *networkingv1.Ingr
 	if cr.Spec.Ingress == nil {
 		return i
 	}
+	i.Annotations = cr.Spec.Ingress.Annotations
 	path := cr.Spec.Ingress.Path
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path

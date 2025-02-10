@@ -152,6 +152,8 @@ type IngressSpec struct {
 	// Path prefix for Coroot (e.g., /coroot).
 	Path string                   `json:"path,omitempty"`
 	TLS  *networkingv1.IngressTLS `json:"tls,omitempty"`
+	// Annotations for Ingress.
+	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
 type ProjectSpec struct {

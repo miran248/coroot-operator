@@ -4428,6 +4428,11 @@ spec:
               ingress:
                 description: Ingress configuration for Coroot.
                 properties:
+                  annotations:
+                    additionalProperties:
+                      type: string
+                    description: Annotations for Ingress.
+                    type: object
                   className:
                     description: Ingress class name (e.g., nginx, traefik; if not
                       set the default IngressClass will be used).
