@@ -111,7 +111,7 @@ func (r *CorootReconciler) clickhouseKeeperStatefulSet(cr *corootv1.Coroot) *app
 				Tolerations:        cr.Spec.Clickhouse.Keeper.Tolerations,
 				InitContainers: []corev1.Container{
 					{
-						Image:        UBIMinimalImage,
+						Image:        ClickhouseImage,
 						Name:         "config",
 						Command:      []string{"/bin/sh", "-c"},
 						Args:         []string{clickhouseKeeperConfigCmd("/config/config.xml", cr, int(replicas))},

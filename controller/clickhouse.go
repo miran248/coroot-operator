@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	ClickhouseImage          = "ghcr.io/coroot/clickhouse:24.8.4-ubi9-0"
+	ClickhouseImage          = "ghcr.io/coroot/clickhouse:25.1.3-ubi9-0"
 	ClickhouseKeeperReplicas = 3
 )
 
@@ -184,7 +184,7 @@ func (r *CorootReconciler) clickhouseStatefulSets(cr *corootv1.Coroot) []*appsv1
 					Tolerations:        cr.Spec.Clickhouse.Tolerations,
 					InitContainers: []corev1.Container{
 						{
-							Image:        UBIMinimalImage,
+							Image:        ClickhouseImage,
 							Name:         "config",
 							Command:      []string{"/bin/sh", "-c"},
 							Args:         []string{clickhouseConfigCmd("/config/config.xml", cr, shards, int(replicas), ClickhouseKeeperReplicas)},
