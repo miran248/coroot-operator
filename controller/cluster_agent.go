@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	KubeStateMetricsImage = "ghcr.io/coroot/kube-state-metrics:2.13.0-ubi9-0"
+	KubeStateMetricsImage = "ghcr.io/coroot/kube-state-metrics:2.15.0-ubi9-0"
 )
 
 func (r *CorootReconciler) clusterAgentClusterRoleBinding(cr *corootv1.Coroot) *rbacv1.ClusterRoleBinding {
