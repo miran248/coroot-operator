@@ -11,7 +11,8 @@ import (
 )
 
 const (
-	PrometheusImage = "ghcr.io/coroot/prometheus:2.55.1-ubi9-0"
+	PrometheusImage            = "ghcr.io/coroot/prometheus:2.55.1-ubi9-0"
+	PrometheusDefaultRetention = "2d"
 )
 
 func (r *CorootReconciler) prometheusService(cr *corootv1.Coroot) *corev1.Service {
@@ -76,6 +77,11 @@ func (r *CorootReconciler) prometheusDeployment(cr *corootv1.Coroot) *appsv1.Dep
 		},
 	}
 
+	retention := PrometheusDefaultRetention
+	if cr.Spec.Prometheus.Retention != "" {
+		retention = cr.Spec.Prometheus.Retention
+	}
+
 	d.Spec = appsv1.DeploymentSpec{
 		Selector: &metav1.LabelSelector{
 			MatchLabels: ls,
@@ -102,7 +108,7 @@ func (r *CorootReconciler) prometheusDeployment(cr *corootv1.Coroot) *appsv1.Dep
 							"--config.file=/etc/prometheus/prometheus.yml",
 							"--web.listen-address=0.0.0.0:9090",
 							"--storage.tsdb.path=/data",
-							"--storage.tsdb.retention.time=2d",
+							"--storage.tsdb.retention.time=" + retention,
 							"--web.enable-remote-write-receiver",
 							"--query.max-samples=100000000",
 						},

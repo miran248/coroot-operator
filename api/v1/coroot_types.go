@@ -84,6 +84,9 @@ type PrometheusSpec struct {
 	Tolerations []corev1.Toleration         `json:"tolerations,omitempty"`
 	// Annotations for prometheus pods.
 	PodAnnotations map[string]string `json:"podAnnotations,omitempty"`
+	// Metrics retention time (e.g. 4h, 3d, 2w, 1y; default 2d)
+	// +kubebuilder:validation:Pattern=^\d+[mhdwy]$
+	Retention string `json:"retention,omitempty"`
 }
 
 type ClickhouseSpec struct {

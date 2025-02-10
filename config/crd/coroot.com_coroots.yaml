@@ -6763,6 +6763,11 @@ spec:
                           More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
                         type: object
                     type: object
+                  retention:
+                    description: Metrics retention time (e.g. 4h, 3d, 2w, 1y; default
+                      2d)
+                    pattern: ^[0-9]+[mhdwy]$
+                    type: string
                   storage:
                     properties:
                       className:
