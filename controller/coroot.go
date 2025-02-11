@@ -157,7 +157,6 @@ func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot) *appsv1.Statef
 
 	env := []corev1.EnvVar{
 		{Name: "GLOBAL_REFRESH_INTERVAL", Value: refreshInterval},
-		{Name: "GLOBAL_PROMETHEUS_URL", Value: fmt.Sprintf("http://%s-prometheus.%s:9090", cr.Name, cr.Namespace)},
 		{Name: "INSTALLATION_TYPE", Value: "k8s-operator"},
 	}
 	if cr.Spec.CacheTTL.Duration > 0 {
@@ -177,6 +176,39 @@ func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot) *appsv1.Statef
 	if cr.Spec.EnterpriseEdition != nil {
 		image = r.getAppImage(cr, AppCorootEE)
 		env = append(env, corev1.EnvVar{Name: "LICENSE_KEY", Value: cr.Spec.EnterpriseEdition.LicenseKey})
+	}
+
+	if ep := cr.Spec.ExternalPrometheus; ep != nil {
+		env = append(env,
+			corev1.EnvVar{Name: "GLOBAL_PROMETHEUS_URL", Value: ep.URL},
+		)
+		if ep.TLSSkipVerify {
+			env = append(env, corev1.EnvVar{Name: "GLOBAL_PROMETHEUS_TLS_SKIP_VERIFY", Value: "true"})
+		}
+		if customHeaders := ep.CustomHeaders; len(customHeaders) > 0 {
+			var headers []string
+			for name, value := range customHeaders {
+				headers = append(headers, fmt.Sprintf("%s=%s", name, value))
+			}
+			env = append(env, corev1.EnvVar{Name: "GLOBAL_PROMETHEUS_CUSTOM_HEADERS", Value: strings.Join(headers, "\n")})
+		}
+		if basicAuth := ep.BasicAuth; basicAuth != nil {
+			env = append(env, corev1.EnvVar{Name: "GLOBAL_PROMETHEUS_USER", Value: basicAuth.Username})
+			password := corev1.EnvVar{Name: "GLOBAL_PROMETHEUS_PASSWORD"}
+			if basicAuth.PasswordSecret != nil {
+				password.ValueFrom = &corev1.EnvVarSource{SecretKeyRef: basicAuth.PasswordSecret}
+			} else {
+				password.Value = basicAuth.Password
+			}
+			env = append(env, password)
+		}
+		if ep.RemoteWriteUrl != "" {
+			env = append(env, corev1.EnvVar{Name: "GLOBAL_PROMETHEUS_REMOTE_WRITE_URL", Value: ep.RemoteWriteUrl})
+		}
+	} else {
+		env = append(env,
+			corev1.EnvVar{Name: "GLOBAL_PROMETHEUS_URL", Value: fmt.Sprintf("http://%s-prometheus.%s:9090", cr.Name, cr.Namespace)},
+		)
 	}
 
 	if ec := cr.Spec.ExternalClickhouse; ec != nil {

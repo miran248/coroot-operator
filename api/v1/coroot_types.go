@@ -87,9 +87,31 @@ type PrometheusSpec struct {
 	// Annotations for prometheus pods.
 	PodAnnotations map[string]string `json:"podAnnotations,omitempty"`
 	// Metrics retention time (e.g. 4h, 3d, 2w, 1y; default 2d)
-	// +kubebuilder:validation:Pattern=^\d+[mhdwy]$
+	// +kubebuilder:validation:Pattern="^[0-9]+[mhdwy]$"
 	Retention string    `json:"retention,omitempty"`
 	Image     ImageSpec `json:"image,omitempty"`
+}
+
+type ExternalPrometheusSpec struct {
+	// http(s)://IP:Port or http(s)://Domain:Port or http(s)://Service Name:Port
+	// +kubebuilder:validation:Pattern="^https?://.+$"
+	URL string `json:"url,omitempty"`
+	// Whether to skip verification of the Prometheus server's TLS certificate.
+	TLSSkipVerify bool `json:"tlsSkipVerify,omitempty"`
+	// Basic auth credentials.
+	BasicAuth *BasicAuthSpec `json:"basicAuth,omitempty"`
+	// Custom headers to include in requests to the Prometheus server.
+	CustomHeaders map[string]string `json:"customHeaders,omitempty"`
+	// The URL for metric ingestion though the Prometheus Remote Write protocol (optional).
+	// +kubebuilder:validation:Pattern="^https?://.+$"
+	RemoteWriteUrl string `json:"remoteWriteURL,omitempty"`
+}
+
+type BasicAuthSpec struct {
+	Username string `json:"username,omitempty"`
+	Password string `json:"password,omitempty"`
+	// Secret containing password. If specified, this takes precedence over the Password field.
+	PasswordSecret *corev1.SecretKeySelector `json:"passwordSecret,omitempty"`
 }
 
 type ClickhouseSpec struct {
@@ -233,6 +255,8 @@ type CorootSpec struct {
 
 	// Prometheus configuration.
 	Prometheus PrometheusSpec `json:"prometheus,omitempty"`
+	// Use an external Prometheus instance instead of deploying one.
+	ExternalPrometheus *ExternalPrometheusSpec `json:"externalPrometheus,omitempty"`
 
 	// Clickhouse configuration.
 	Clickhouse ClickhouseSpec `json:"clickhouse,omitempty"`

@@ -4640,6 +4640,64 @@ spec:
                     description: Username for accessing the external ClickHouse.
                     type: string
                 type: object
+              externalPrometheus:
+                description: Use an external Prometheus instance instead of deploying
+                  one.
+                properties:
+                  basicAuth:
+                    description: Basic auth credentials.
+                    properties:
+                      password:
+                        type: string
+                      passwordSecret:
+                        description: Secret containing password. If specified, this
+                          takes precedence over the Password field.
+                        properties:
+                          key:
+                            description: The key of the secret to select from.  Must
+                              be a valid secret key.
+                            type: string
+                          name:
+                            default: ""
+                            description: |-
+                              Name of the referent.
+                              This field is effectively required, but due to backwards compatibility is
+                              allowed to be empty. Instances of this type with an empty value here are
+                              almost certainly wrong.
+                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            type: string
+                          optional:
+                            description: Specify whether the Secret or its key must
+                              be defined
+                            type: boolean
+                        required:
+                        - key
+                        type: object
+                        x-kubernetes-map-type: atomic
+                      username:
+                        type: string
+                    type: object
+                  customHeaders:
+                    additionalProperties:
+                      type: string
+                    description: Custom headers to include in requests to the Prometheus
+                      server.
+                    type: object
+                  remoteWriteURL:
+                    description: The URL for metric ingestion though the Prometheus
+                      Remote Write protocol (optional).
+                    pattern: ^https?://.+$
+                    type: string
+                  tlsSkipVerify:
+                    description: Whether to skip verification of the Prometheus server's
+                      TLS certificate.
+                    type: boolean
+                  url:
+                    description: http(s)://IP:Port or http(s)://Domain:Port or http(s)://Service
+                      Name:Port
+                    pattern: ^https?://.+$
+                    type: string
+                type: object
               ingress:
                 description: Ingress configuration for Coroot.
                 properties:
