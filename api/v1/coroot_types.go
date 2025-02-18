@@ -282,6 +282,7 @@ type CorootStatus struct { // TODO
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:metadata:annotations=argocd.argoproj.io/sync-options=Replace=true
 
 type Coroot struct {
 	metav1.TypeMeta   `json:",inline"`
