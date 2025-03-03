@@ -106,6 +106,7 @@ func (r *CorootReconciler) clusterAgentDeployment(cr *corootv1.Coroot) *appsv1.D
 			Spec: corev1.PodSpec{
 				ServiceAccountName: cr.Name + "-cluster-agent",
 				SecurityContext:    nonRootSecurityContext,
+				NodeSelector:       cr.Spec.ClusterAgent.NodeSelector,
 				Affinity:           cr.Spec.ClusterAgent.Affinity,
 				Tolerations:        cr.Spec.ClusterAgent.Tolerations,
 				ImagePullSecrets:   image.PullSecrets,

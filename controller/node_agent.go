@@ -74,6 +74,7 @@ func (r *CorootReconciler) nodeAgentDaemonSet(cr *corootv1.Coroot) *appsv1.Daemo
 				HostPID:            true,
 				Tolerations:        tolerations,
 				PriorityClassName:  cr.Spec.NodeAgent.PriorityClassName,
+				NodeSelector:       cr.Spec.NodeAgent.NodeSelector,
 				Affinity:           cr.Spec.NodeAgent.Affinity,
 				ImagePullSecrets:   image.PullSecrets,
 				Containers: []corev1.Container{

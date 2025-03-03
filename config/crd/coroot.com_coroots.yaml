@@ -2917,6 +2917,12 @@ spec:
                               x-kubernetes-map-type: atomic
                             type: array
                         type: object
+                      nodeSelector:
+                        additionalProperties:
+                          type: string
+                        description: NodeSelector restricts scheduling to nodes matching
+                          the specified labels.
+                        type: object
                       podAnnotations:
                         additionalProperties:
                           type: string
@@ -3039,6 +3045,12 @@ spec:
                               type: string
                           type: object
                         type: array
+                    type: object
+                  nodeSelector:
+                    additionalProperties:
+                      type: string
+                    description: NodeSelector restricts scheduling to nodes matching
+                      the specified labels.
                     type: object
                   podAnnotations:
                     additionalProperties:
@@ -4290,6 +4302,12 @@ spec:
                               x-kubernetes-map-type: atomic
                             type: array
                         type: object
+                    type: object
+                  nodeSelector:
+                    additionalProperties:
+                      type: string
+                    description: NodeSelector restricts scheduling to nodes matching
+                      the specified labels.
                     type: object
                   podAnnotations:
                     additionalProperties:
@@ -5829,6 +5847,12 @@ spec:
                           x-kubernetes-map-type: atomic
                         type: array
                     type: object
+                  nodeSelector:
+                    additionalProperties:
+                      type: string
+                    description: NodeSelector restricts scheduling to nodes matching
+                      the specified labels.
+                    type: object
                   podAnnotations:
                     additionalProperties:
                       type: string
@@ -5993,6 +6017,12 @@ spec:
                           or "OnDelete". Default is RollingUpdate.
                         type: string
                     type: object
+                type: object
+              nodeSelector:
+                additionalProperties:
+                  type: string
+                description: NodeSelector restricts scheduling to nodes matching the
+                  specified labels.
                 type: object
               podAnnotations:
                 additionalProperties:
@@ -7044,6 +7074,12 @@ spec:
                           type: object
                           x-kubernetes-map-type: atomic
                         type: array
+                    type: object
+                  nodeSelector:
+                    additionalProperties:
+                      type: string
+                    description: NodeSelector restricts scheduling to nodes matching
+                      the specified labels.
                     type: object
                   podAnnotations:
                     additionalProperties:

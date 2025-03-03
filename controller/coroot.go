@@ -276,6 +276,7 @@ func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot) *appsv1.Statef
 			Spec: corev1.PodSpec{
 				ServiceAccountName: cr.Name + "-coroot",
 				SecurityContext:    nonRootSecurityContext,
+				NodeSelector:       cr.Spec.NodeSelector,
 				Affinity:           cr.Spec.Affinity,
 				Tolerations:        cr.Spec.Tolerations,
 				ImagePullSecrets:   image.PullSecrets,

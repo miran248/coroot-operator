@@ -111,6 +111,7 @@ func (r *CorootReconciler) clickhouseKeeperStatefulSet(cr *corootv1.Coroot) *app
 			Spec: corev1.PodSpec{
 				ServiceAccountName: cr.Name + "-clickhouse-keeper",
 				SecurityContext:    nonRootSecurityContext,
+				NodeSelector:       cr.Spec.Clickhouse.Keeper.NodeSelector,
 				Affinity:           cr.Spec.Clickhouse.Keeper.Affinity,
 				Tolerations:        cr.Spec.Clickhouse.Keeper.Tolerations,
 				ImagePullSecrets:   image.PullSecrets,

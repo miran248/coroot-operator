@@ -99,6 +99,7 @@ func (r *CorootReconciler) prometheusDeployment(cr *corootv1.Coroot) *appsv1.Dep
 			Spec: corev1.PodSpec{
 				ServiceAccountName: cr.Name + "-prometheus",
 				SecurityContext:    nonRootSecurityContext,
+				NodeSelector:       cr.Spec.Prometheus.NodeSelector,
 				Affinity:           cr.Spec.Prometheus.Affinity,
 				Tolerations:        cr.Spec.Prometheus.Tolerations,
 				ImagePullSecrets:   image.PullSecrets,

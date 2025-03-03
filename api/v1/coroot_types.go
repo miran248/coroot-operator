@@ -52,9 +52,11 @@ type NodeAgentSpec struct {
 	// Priority class for the node-agent pods.
 	PriorityClassName string                         `json:"priorityClassName,omitempty"`
 	UpdateStrategy    appsv1.DaemonSetUpdateStrategy `json:"update_strategy,omitempty"`
-	Affinity          *corev1.Affinity               `json:"affinity,omitempty"`
-	Resources         corev1.ResourceRequirements    `json:"resources,omitempty"`
-	Tolerations       []corev1.Toleration            `json:"tolerations,omitempty"`
+	// NodeSelector restricts scheduling to nodes matching the specified labels.
+	NodeSelector map[string]string           `json:"nodeSelector,omitempty"`
+	Affinity     *corev1.Affinity            `json:"affinity,omitempty"`
+	Resources    corev1.ResourceRequirements `json:"resources,omitempty"`
+	Tolerations  []corev1.Toleration         `json:"tolerations,omitempty"`
 	// Annotations for node-agent pods.
 	PodAnnotations map[string]string `json:"podAnnotations,omitempty"`
 	// Environment variables for the node-agent.
@@ -63,9 +65,11 @@ type NodeAgentSpec struct {
 }
 
 type ClusterAgentSpec struct {
-	Affinity    *corev1.Affinity            `json:"affinity,omitempty"`
-	Resources   corev1.ResourceRequirements `json:"resources,omitempty"`
-	Tolerations []corev1.Toleration         `json:"tolerations,omitempty"`
+	// NodeSelector restricts scheduling to nodes matching the specified labels.
+	NodeSelector map[string]string           `json:"nodeSelector,omitempty"`
+	Affinity     *corev1.Affinity            `json:"affinity,omitempty"`
+	Resources    corev1.ResourceRequirements `json:"resources,omitempty"`
+	Tolerations  []corev1.Toleration         `json:"tolerations,omitempty"`
 	// Annotations for cluster-agent pods.
 	PodAnnotations map[string]string `json:"podAnnotations,omitempty"`
 	// Environment variables for the cluster-agent.
@@ -80,10 +84,12 @@ type KubeStateMetricsSpec struct {
 }
 
 type PrometheusSpec struct {
-	Affinity    *corev1.Affinity            `json:"affinity,omitempty"`
-	Storage     StorageSpec                 `json:"storage,omitempty"`
-	Resources   corev1.ResourceRequirements `json:"resources,omitempty"`
-	Tolerations []corev1.Toleration         `json:"tolerations,omitempty"`
+	// NodeSelector restricts scheduling to nodes matching the specified labels.
+	NodeSelector map[string]string           `json:"nodeSelector,omitempty"`
+	Affinity     *corev1.Affinity            `json:"affinity,omitempty"`
+	Storage      StorageSpec                 `json:"storage,omitempty"`
+	Resources    corev1.ResourceRequirements `json:"resources,omitempty"`
+	Tolerations  []corev1.Toleration         `json:"tolerations,omitempty"`
 	// Annotations for prometheus pods.
 	PodAnnotations map[string]string `json:"podAnnotations,omitempty"`
 	// Metrics retention time (e.g. 4h, 3d, 2w, 1y; default 2d)
@@ -118,7 +124,9 @@ type ClickhouseSpec struct {
 	Shards   int `json:"shards,omitempty"`
 	Replicas int `json:"replicas,omitempty"`
 
-	Affinity *corev1.Affinity `json:"affinity,omitempty"`
+	// NodeSelector restricts scheduling to nodes matching the specified labels.
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+	Affinity     *corev1.Affinity  `json:"affinity,omitempty"`
 	// Storage configuration for clickhouse.
 	Storage     StorageSpec                 `json:"storage,omitempty"`
 	Resources   corev1.ResourceRequirements `json:"resources,omitempty"`
@@ -131,7 +139,9 @@ type ClickhouseSpec struct {
 }
 
 type ClickhouseKeeperSpec struct {
-	Affinity *corev1.Affinity `json:"affinity,omitempty"`
+	// NodeSelector restricts scheduling to nodes matching the specified labels.
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+	Affinity     *corev1.Affinity  `json:"affinity,omitempty"`
 	// Storage configuration for clickhouse-keeper.
 	Storage     StorageSpec                 `json:"storage,omitempty"`
 	Resources   corev1.ResourceRequirements `json:"resources,omitempty"`
@@ -239,8 +249,10 @@ type CorootSpec struct {
 	// Service configuration for Coroot.
 	Service ServiceSpec `json:"service,omitempty"`
 	// Ingress configuration for Coroot.
-	Ingress  *IngressSpec     `json:"ingress,omitempty"`
-	Affinity *corev1.Affinity `json:"affinity,omitempty"`
+	Ingress *IngressSpec `json:"ingress,omitempty"`
+	// NodeSelector restricts scheduling to nodes matching the specified labels.
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+	Affinity     *corev1.Affinity  `json:"affinity,omitempty"`
 	// Storage configuration for Coroot.
 	Storage     StorageSpec                 `json:"storage,omitempty"`
 	Resources   corev1.ResourceRequirements `json:"resources,omitempty"`
