@@ -225,9 +225,20 @@ type ApiKeySpec struct {
 
 type CorootSpec struct {
 	// Specifies the metric resolution interval.
-	MetricsRefreshInterval metav1.Duration `json:"metricsRefreshInterval,omitempty"`
-	// Duration for which Coroot retains the metric cache.
-	CacheTTL metav1.Duration `json:"cacheTTL,omitempty"`
+	// +kubebuilder:validation:Pattern="^[0-9]+[sm]$"
+	MetricsRefreshInterval string `json:"metricsRefreshInterval,omitempty"`
+	// Metric cache retention time (e.g. 4h, 3d, 2w, 1y; default 30d).
+	// +kubebuilder:validation:Pattern="^[0-9]+[mhdwy]$"
+	CacheTTL string `json:"cacheTTL,omitempty"`
+	// Traces retention time (e.g. 4h, 3d, 2w, 1y; default 7d).
+	// +kubebuilder:validation:Pattern="^[0-9]+[mhdwy]$"
+	TracesTTL string `json:"tracesTTL,omitempty"`
+	// Logs retention time (e.g. 4h, 3d, 2w, 1y; default 7d).
+	// +kubebuilder:validation:Pattern="^[0-9]+[mhdwy]$"
+	LogsTTL string `json:"logsTTL,omitempty"`
+	// Profiles retention time (e.g. 4h, 3d, 2w, 1y; default 7d).
+	// +kubebuilder:validation:Pattern="^[0-9]+[mhdwy]$"
+	ProfilesTTL string `json:"profilesTTL,omitempty"`
 	// Allows access to Coroot without authentication if set (one of Admin, Editor, or Viewer).
 	AuthAnonymousRole string `json:"authAnonymousRole,omitempty"`
 	// Initial admin password for bootstrapping.

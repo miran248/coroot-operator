@@ -979,7 +979,9 @@ spec:
                 description: Initial admin password for bootstrapping.
                 type: string
               cacheTTL:
-                description: Duration for which Coroot retains the metric cache.
+                description: Metric cache retention time (e.g. 4h, 3d, 2w, 1y; default
+                  30d).
+                pattern: ^[0-9]+[mhdwy]$
                 type: string
               clickhouse:
                 description: Clickhouse configuration.
@@ -4759,8 +4761,13 @@ spec:
                         type: string
                     type: object
                 type: object
+              logsTTL:
+                description: Logs retention time (e.g. 4h, 3d, 2w, 1y; default 7d).
+                pattern: ^[0-9]+[mhdwy]$
+                type: string
               metricsRefreshInterval:
                 description: Specifies the metric resolution interval.
+                pattern: ^[0-9]+[sm]$
                 type: string
               nodeAgent:
                 properties:
@@ -6080,6 +6087,11 @@ spec:
                     description: Username for accessing Postgres.
                     type: string
                 type: object
+              profilesTTL:
+                description: Profiles retention time (e.g. 4h, 3d, 2w, 1y; default
+                  7d).
+                pattern: ^[0-9]+[mhdwy]$
+                type: string
               projects:
                 description: Projects configuration (Coroot will create or update
                   projects the specified projects).
@@ -7340,6 +7352,10 @@ spec:
                       type: string
                   type: object
                 type: array
+              tracesTTL:
+                description: Traces retention time (e.g. 4h, 3d, 2w, 1y; default 7d).
+                pattern: ^[0-9]+[mhdwy]$
+                type: string
             type: object
           status:
             properties:

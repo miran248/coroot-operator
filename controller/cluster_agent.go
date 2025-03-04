@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"cmp"
 	"fmt"
 
 	corootv1 "github.io/coroot/operator/api/v1"
@@ -79,10 +80,7 @@ func (r *CorootReconciler) clusterAgentDeployment(cr *corootv1.Coroot) *appsv1.D
 	if cr.Spec.AgentsOnly != nil {
 		corootUrl = cr.Spec.AgentsOnly.CorootURL
 	}
-	scrapeInterval := cr.Spec.MetricsRefreshInterval.Duration.String()
-	if cr.Spec.MetricsRefreshInterval.Duration == 0 {
-		scrapeInterval = corootv1.DefaultMetricRefreshInterval
-	}
+	scrapeInterval := cmp.Or(cr.Spec.MetricsRefreshInterval, corootv1.DefaultMetricRefreshInterval)
 	env := []corev1.EnvVar{
 		{Name: "COROOT_URL", Value: corootUrl},
 		{Name: "API_KEY", Value: cr.Spec.ApiKey},

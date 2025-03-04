@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"cmp"
 	"fmt"
 	"strings"
 	"text/template"
@@ -150,17 +151,23 @@ func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot) *appsv1.Statef
 		},
 	}
 
-	refreshInterval := cr.Spec.MetricsRefreshInterval.Duration.String()
-	if cr.Spec.MetricsRefreshInterval.Duration == 0 {
-		refreshInterval = corootv1.DefaultMetricRefreshInterval
-	}
+	refreshInterval := cmp.Or(cr.Spec.MetricsRefreshInterval, corootv1.DefaultMetricRefreshInterval)
 
 	env := []corev1.EnvVar{
 		{Name: "GLOBAL_REFRESH_INTERVAL", Value: refreshInterval},
 		{Name: "INSTALLATION_TYPE", Value: "k8s-operator"},
 	}
-	if cr.Spec.CacheTTL.Duration > 0 {
-		env = append(env, corev1.EnvVar{Name: "CACHE_TTL", Value: cr.Spec.CacheTTL.Duration.String()})
+	if cr.Spec.CacheTTL != "" {
+		env = append(env, corev1.EnvVar{Name: "CACHE_TTL", Value: cr.Spec.CacheTTL})
+	}
+	if cr.Spec.TracesTTL != "" {
+		env = append(env, corev1.EnvVar{Name: "TRACES_TTL", Value: cr.Spec.TracesTTL})
+	}
+	if cr.Spec.LogsTTL != "" {
+		env = append(env, corev1.EnvVar{Name: "LOGS_TTL", Value: cr.Spec.LogsTTL})
+	}
+	if cr.Spec.ProfilesTTL != "" {
+		env = append(env, corev1.EnvVar{Name: "PROFILES_TTL", Value: cr.Spec.ProfilesTTL})
 	}
 	if cr.Spec.AuthAnonymousRole != "" {
 		env = append(env, corev1.EnvVar{Name: "AUTH_ANONYMOUS_ROLE", Value: cr.Spec.AuthAnonymousRole})
