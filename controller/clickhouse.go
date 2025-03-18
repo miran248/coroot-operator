@@ -13,10 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-const (
-	ClickhouseKeeperReplicas = 3
-)
-
 func (r *CorootReconciler) clickhouseSecret(cr *corootv1.Coroot) *corev1.Secret {
 	ls := Labels(cr, "clickhouse")
 	s := &corev1.Secret{
@@ -140,11 +136,11 @@ func (r *CorootReconciler) clickhouseStatefulSets(cr *corootv1.Coroot) []*appsv1
 	ls := Labels(cr, "clickhouse")
 
 	shards := cr.Spec.Clickhouse.Shards
-	if shards == 0 {
+	if shards <= 0 {
 		shards = 1
 	}
 	replicas := int32(cr.Spec.Clickhouse.Replicas)
-	if replicas == 0 {
+	if replicas <= 0 {
 		replicas = 1
 	}
 
@@ -192,7 +188,7 @@ func (r *CorootReconciler) clickhouseStatefulSets(cr *corootv1.Coroot) []*appsv1
 							ImagePullPolicy: image.PullPolicy,
 							Name:            "config",
 							Command:         []string{"/bin/sh", "-c"},
-							Args:            []string{clickhouseConfigCmd("/config/config.xml", cr, shards, int(replicas), ClickhouseKeeperReplicas)},
+							Args:            []string{clickhouseConfigCmd("/config/config.xml", cr, shards, int(replicas), clickhouseKeeperReplicas(cr))},
 							VolumeMounts:    []corev1.VolumeMount{{Name: "config", MountPath: "/config"}},
 						},
 					},

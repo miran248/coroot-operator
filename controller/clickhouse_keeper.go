@@ -13,6 +13,13 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
+func clickhouseKeeperReplicas(cr *corootv1.Coroot) int {
+	if cr.Spec.Clickhouse.Keeper.Replicas > 0 {
+		return cr.Spec.Clickhouse.Keeper.Replicas
+	}
+	return 3
+}
+
 func (r *CorootReconciler) clickhouseKeeperServiceHeadless(cr *corootv1.Coroot) *corev1.Service {
 	ls := Labels(cr, "clickhouse-keeper")
 	s := &corev1.Service{
@@ -55,7 +62,7 @@ func (r *CorootReconciler) clickhouseKeeperPVCs(cr *corootv1.Coroot) []*corev1.P
 	}
 
 	var res []*corev1.PersistentVolumeClaim
-	for replica := 0; replica < ClickhouseKeeperReplicas; replica++ {
+	for replica := 0; replica < clickhouseKeeperReplicas(cr); replica++ {
 		pvc := &corev1.PersistentVolumeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      fmt.Sprintf("data-%s-clickhouse-keeper-%d", cr.Name, replica),
@@ -87,7 +94,7 @@ func (r *CorootReconciler) clickhouseKeeperStatefulSet(cr *corootv1.Coroot) *app
 		},
 	}
 
-	replicas := int32(ClickhouseKeeperReplicas)
+	replicas := int32(clickhouseKeeperReplicas(cr))
 
 	image := r.getAppImage(cr, AppClickhouseKeeper)
 

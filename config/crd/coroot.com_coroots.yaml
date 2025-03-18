@@ -2930,6 +2930,8 @@ spec:
                           type: string
                         description: Annotations for clickhouse-keeper pods.
                         type: object
+                      replicas:
+                        type: integer
                       resources:
                         description: ResourceRequirements describes the compute resource
                           requirements.

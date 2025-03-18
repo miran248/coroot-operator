@@ -139,6 +139,7 @@ type ClickhouseSpec struct {
 }
 
 type ClickhouseKeeperSpec struct {
+	Replicas int `json:"replicas,omitempty"`
 	// NodeSelector restricts scheduling to nodes matching the specified labels.
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
 	Affinity     *corev1.Affinity  `json:"affinity,omitempty"`
