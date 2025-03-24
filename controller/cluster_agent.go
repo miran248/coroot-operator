@@ -132,6 +132,7 @@ func (r *CorootReconciler) clusterAgentDeployment(cr *corootv1.Coroot) *appsv1.D
 							"--port=10302",
 							"--resources=namespaces,nodes,daemonsets,deployments,cronjobs,jobs,persistentvolumeclaims,persistentvolumes,pods,replicasets,services,endpoints,statefulsets,storageclasses,volumeattachments",
 							"--metric-labels-allowlist=pods=[*]",
+							"--metric-annotations-allowlist=*=[coroot.com/application-category,coroot.com/custom-application-name]",
 						},
 						Resources: corev1.ResourceRequirements{
 							Requests: cr.Spec.ClusterAgent.Resources.Requests,
