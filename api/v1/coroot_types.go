@@ -92,10 +92,13 @@ type PrometheusSpec struct {
 	Tolerations  []corev1.Toleration         `json:"tolerations,omitempty"`
 	// Annotations for prometheus pods.
 	PodAnnotations map[string]string `json:"podAnnotations,omitempty"`
+	Image          ImageSpec         `json:"image,omitempty"`
 	// Metrics retention time (e.g. 4h, 3d, 2w, 1y; default 2d)
 	// +kubebuilder:validation:Pattern="^[0-9]+[mhdwy]$"
-	Retention string    `json:"retention,omitempty"`
-	Image     ImageSpec `json:"image,omitempty"`
+	Retention string `json:"retention,omitempty"`
+	// Out-of-order time window (e.g. 30s, 10m, 2h; default 1h)
+	// +kubebuilder:validation:Pattern="^[0-9]+[smhdwy]$"
+	OutOfOrderTimeWindow string `json:"outOfOrderTimeWindow,omitempty"`
 }
 
 type ExternalPrometheusSpec struct {

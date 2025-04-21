@@ -7095,6 +7095,11 @@ spec:
                     description: NodeSelector restricts scheduling to nodes matching
                       the specified labels.
                     type: object
+                  outOfOrderTimeWindow:
+                    description: Out-of-order time window (e.g. 30s, 10m, 2h; default
+                      1h)
+                    pattern: ^[0-9]+[smhdwy]$
+                    type: string
                   podAnnotations:
                     additionalProperties:
                       type: string

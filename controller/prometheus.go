@@ -1,7 +1,9 @@
 package controller
 
 import (
+	"bytes"
 	"fmt"
+	"text/template"
 
 	corootv1 "github.io/coroot/operator/api/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -12,7 +14,8 @@ import (
 )
 
 const (
-	PrometheusDefaultRetention = "2d"
+	PrometheusDefaultRetention            = "2d"
+	PrometheusDefaultOutOfOrderTimeWindow = "1h"
 )
 
 func (r *CorootReconciler) prometheusService(cr *corootv1.Coroot) *corev1.Service {
@@ -103,6 +106,16 @@ func (r *CorootReconciler) prometheusDeployment(cr *corootv1.Coroot) *appsv1.Dep
 				Affinity:           cr.Spec.Prometheus.Affinity,
 				Tolerations:        cr.Spec.Prometheus.Tolerations,
 				ImagePullSecrets:   image.PullSecrets,
+				InitContainers: []corev1.Container{
+					{
+						Image:           image.Name,
+						ImagePullPolicy: image.PullPolicy,
+						Name:            "config",
+						Command:         []string{"/bin/sh", "-c"},
+						Args:            []string{prometheusConfigCmd("/config/prometheus.yml", cr)},
+						VolumeMounts:    []corev1.VolumeMount{{Name: "config", MountPath: "/config"}},
+					},
+				},
 				Containers: []corev1.Container{
 					{
 						Image:           image.Name,
@@ -110,7 +123,7 @@ func (r *CorootReconciler) prometheusDeployment(cr *corootv1.Coroot) *appsv1.Dep
 						Name:            "prometheus",
 						Command:         []string{"prometheus"},
 						Args: []string{
-							"--config.file=/etc/prometheus/prometheus.yml",
+							"--config.file=/config/prometheus.yml",
 							"--web.listen-address=0.0.0.0:9090",
 							"--storage.tsdb.path=/data",
 							"--storage.tsdb.retention.time=" + retention,
@@ -155,3 +168,27 @@ func (r *CorootReconciler) prometheusDeployment(cr *corootv1.Coroot) *appsv1.Dep
 
 	return d
 }
+
+func prometheusConfigCmd(filename string, cr *corootv1.Coroot) string {
+	params := struct {
+		OutOfOrderTimeWindow string
+	}{
+		OutOfOrderTimeWindow: cr.Spec.Prometheus.OutOfOrderTimeWindow,
+	}
+	if params.OutOfOrderTimeWindow == "" {
+		params.OutOfOrderTimeWindow = PrometheusDefaultOutOfOrderTimeWindow
+	}
+	var out bytes.Buffer
+	_ = prometheusConfigTemplate.Execute(&out, params)
+	return "cat <<EOF > " + filename + out.String() + "EOF"
+}
+
+var prometheusConfigTemplate = template.Must(template.New("").Parse(`
+storage:
+  tsdb:
+    out_of_order_time_window: {{ .OutOfOrderTimeWindow }}
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["127.0.0.1:9090"]
+`))
