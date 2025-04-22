@@ -307,9 +307,11 @@ type CorootSpec struct {
 	PodAnnotations map[string]string `json:"podAnnotations,omitempty"`
 
 	// The API key used by agents when sending telemetry to Coroot.
-	ApiKey       string           `json:"apiKey,omitempty"`
-	NodeAgent    NodeAgentSpec    `json:"nodeAgent,omitempty"`
-	ClusterAgent ClusterAgentSpec `json:"clusterAgent,omitempty"`
+	ApiKey string `json:"apiKey,omitempty"`
+	// Secret containing API key.
+	ApiKeySecret *corev1.SecretKeySelector `json:"apiKeySecret,omitempty"`
+	NodeAgent    NodeAgentSpec             `json:"nodeAgent,omitempty"`
+	ClusterAgent ClusterAgentSpec          `json:"clusterAgent,omitempty"`
 
 	// Prometheus configuration.
 	Prometheus PrometheusSpec `json:"prometheus,omitempty"`

@@ -338,6 +338,11 @@ func (in *CorootSpec) DeepCopyInto(out *CorootSpec) {
 			(*out)[key] = val
 		}
 	}
+	if in.ApiKeySecret != nil {
+		in, out := &in.ApiKeySecret, &out.ApiKeySecret
+		*out = new(corev1.SecretKeySelector)
+		(*in).DeepCopyInto(*out)
+	}
 	in.NodeAgent.DeepCopyInto(&out.NodeAgent)
 	in.ClusterAgent.DeepCopyInto(&out.ClusterAgent)
 	in.Prometheus.DeepCopyInto(&out.Prometheus)
