@@ -5999,6 +5999,12 @@ spec:
                           type: string
                       type: object
                     type: array
+                  trackPublicNetworks:
+                    description: 'Allow track connections to the specified IP networks
+                      (e.g., Y.Y.Y.Y/mask, default: 0.0.0.0/0).'
+                    items:
+                      type: string
+                    type: array
                   update_strategy:
                     description: DaemonSetUpdateStrategy is a struct used to control
                       the update strategy for a DaemonSet.

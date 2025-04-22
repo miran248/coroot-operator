@@ -54,6 +54,9 @@ func (r *CorootReconciler) nodeAgentDaemonSet(cr *corootv1.Coroot) *appsv1.Daemo
 	if v := cr.Spec.NodeAgent.EbpfProfiler.Enabled; v == nil || *v {
 		env = append(env, corev1.EnvVar{Name: "PROFILES_ENDPOINT", Value: corootURL + "/v1/profiles"})
 	}
+	if v := cr.Spec.NodeAgent.TrackPublicNetworks; len(v) > 0 {
+		env = append(env, corev1.EnvVar{Name: "TRACK_PUBLIC_NETWORK", Value: strings.Join(v, "\n")})
+	}
 
 	for _, e := range cr.Spec.NodeAgent.Env {
 		env = append(env, e)

@@ -70,6 +70,9 @@ type NodeAgentSpec struct {
 	LogCollector LogCollectorSpec `json:"logCollector,omitempty"`
 	EbpfTracer   EbpfTracerSpec   `json:"ebpfTracer,omitempty"`
 	EbpfProfiler EbpfProfilerSpec `json:"ebpfProfiler,omitempty"`
+
+	// Allow track connections to the specified IP networks (e.g., Y.Y.Y.Y/mask, default: 0.0.0.0/0).
+	TrackPublicNetworks []string `json:"trackPublicNetworks,omitempty"`
 }
 
 type LogCollectorSpec struct {
