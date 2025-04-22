@@ -27,7 +27,11 @@ type EnterpriseEditionSpec struct {
 
 type AgentsOnlySpec struct {
 	// URL of the Coroot instance to which agents send metrics, logs, traces, and profiles.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern="^https?://.+$"
 	CorootURL string `json:"corootURL,omitempty"`
+	// Whether to skip verification of the Coroot server's TLS certificate.
+	TLSSkipVerify bool `json:"tlsSkipVerify,omitempty"`
 }
 
 type ServiceSpec struct {
@@ -44,7 +48,7 @@ type StorageSpec struct {
 	Size resource.Quantity `json:"size,omitempty"`
 	// If not set, the default storage class will be used.
 	ClassName *string `json:"className,omitempty"`
-	// Valid options are Retain (keep PVC), or Delete (default)
+	// Valid options are Retain (keep PVC), or Delete (default).
 	ReclaimPolicy corev1.PersistentVolumeReclaimPolicy `json:"reclaimPolicy,omitempty"`
 }
 
@@ -62,6 +66,30 @@ type NodeAgentSpec struct {
 	// Environment variables for the node-agent.
 	Env   []corev1.EnvVar `json:"env,omitempty"`
 	Image ImageSpec       `json:"image,omitempty"`
+
+	LogCollector LogCollectorSpec `json:"logCollector,omitempty"`
+	EbpfTracer   EbpfTracerSpec   `json:"ebpfTracer,omitempty"`
+	EbpfProfiler EbpfProfilerSpec `json:"ebpfProfiler,omitempty"`
+}
+
+type LogCollectorSpec struct {
+	// Collect log-based metrics (default: true).
+	CollectLogBasedMetrics *bool `json:"collectLogBasedMetrics,omitempty"`
+	// Collect log entries (default: true).
+	CollectLogEntries *bool `json:"collectLogEntries,omitempty"`
+}
+
+type EbpfTracerSpec struct {
+	// Enable or disable eBPF tracing (default: true).
+	Enabled *bool `json:"enabled,omitempty"`
+	// Trace sampling rate (0.0 to 1.0; default: 1.0).
+	// +kubebuilder:validation:Pattern="^(0([.][0-9]+)?|1([.]0+)?)$"
+	Sampling string `json:"sampling,omitempty"`
+}
+
+type EbpfProfilerSpec struct {
+	// Enable or disable eBPF profiler (default: true).
+	Enabled *bool `json:"enabled,omitempty"`
 }
 
 type ClusterAgentSpec struct {
@@ -93,16 +121,16 @@ type PrometheusSpec struct {
 	// Annotations for prometheus pods.
 	PodAnnotations map[string]string `json:"podAnnotations,omitempty"`
 	Image          ImageSpec         `json:"image,omitempty"`
-	// Metrics retention time (e.g. 4h, 3d, 2w, 1y; default 2d)
+	// Metrics retention time (e.g. 4h, 3d, 2w, 1y; default 2d).
 	// +kubebuilder:validation:Pattern="^[0-9]+[mhdwy]$"
 	Retention string `json:"retention,omitempty"`
-	// Out-of-order time window (e.g. 30s, 10m, 2h; default 1h)
+	// Out-of-order time window (e.g. 30s, 10m, 2h; default 1h).
 	// +kubebuilder:validation:Pattern="^[0-9]+[smhdwy]$"
 	OutOfOrderTimeWindow string `json:"outOfOrderTimeWindow,omitempty"`
 }
 
 type ExternalPrometheusSpec struct {
-	// http(s)://IP:Port or http(s)://Domain:Port or http(s)://Service Name:Port
+	// http(s)://IP:Port or http(s)://Domain:Port or http(s)://ServiceName:Port
 	// +kubebuilder:validation:Pattern="^https?://.+$"
 	URL string `json:"url,omitempty"`
 	// Whether to skip verification of the Prometheus server's TLS certificate.

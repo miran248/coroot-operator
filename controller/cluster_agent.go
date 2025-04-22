@@ -76,16 +76,21 @@ func (r *CorootReconciler) clusterAgentDeployment(cr *corootv1.Coroot) *appsv1.D
 		},
 	}
 
-	corootUrl := fmt.Sprintf("http://%s-coroot.%s:8080", cr.Name, cr.Namespace)
-	if cr.Spec.AgentsOnly != nil {
-		corootUrl = cr.Spec.AgentsOnly.CorootURL
+	corootURL := fmt.Sprintf("http://%s-coroot.%s:8080", cr.Name, cr.Namespace)
+	var tlsSkipVerify bool
+	if cr.Spec.AgentsOnly != nil && cr.Spec.AgentsOnly.CorootURL != "" {
+		corootURL = cr.Spec.AgentsOnly.CorootURL
+		tlsSkipVerify = cr.Spec.AgentsOnly.TLSSkipVerify
 	}
 	scrapeInterval := cmp.Or(cr.Spec.MetricsRefreshInterval, corootv1.DefaultMetricRefreshInterval)
 	env := []corev1.EnvVar{
-		{Name: "COROOT_URL", Value: corootUrl},
 		{Name: "API_KEY", Value: cr.Spec.ApiKey},
+		{Name: "COROOT_URL", Value: corootURL},
 		{Name: "METRICS_SCRAPE_INTERVAL", Value: scrapeInterval},
 		{Name: "KUBE_STATE_METRICS_ADDRESS", Value: "127.0.0.1:10302"},
+	}
+	if tlsSkipVerify {
+		env = append(env, corev1.EnvVar{Name: "INSECURE_SKIP_VERIFY", Value: "true"})
 	}
 	for _, e := range cr.Spec.ClusterAgent.Env {
 		env = append(env, e)

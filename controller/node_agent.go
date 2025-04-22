@@ -3,6 +3,7 @@ package controller
 import (
 	"cmp"
 	"fmt"
+	"strings"
 
 	corootv1 "github.io/coroot/operator/api/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -22,16 +23,38 @@ func (r *CorootReconciler) nodeAgentDaemonSet(cr *corootv1.Coroot) *appsv1.Daemo
 		},
 	}
 
-	collectorEndpoint := fmt.Sprintf("http://%s-coroot.%s:8080", cr.Name, cr.Namespace)
-	if cr.Spec.AgentsOnly != nil {
-		collectorEndpoint = cr.Spec.AgentsOnly.CorootURL
+	corootURL := fmt.Sprintf("http://%s-coroot.%s:8080", cr.Name, cr.Namespace)
+	var tlsSkipVerify bool
+	if cr.Spec.AgentsOnly != nil && cr.Spec.AgentsOnly.CorootURL != "" {
+		corootURL = strings.TrimRight(cr.Spec.AgentsOnly.CorootURL, "/")
+		tlsSkipVerify = cr.Spec.AgentsOnly.TLSSkipVerify
 	}
 	scrapeInterval := cmp.Or(cr.Spec.MetricsRefreshInterval, corootv1.DefaultMetricRefreshInterval)
 	env := []corev1.EnvVar{
-		{Name: "COLLECTOR_ENDPOINT", Value: collectorEndpoint},
 		{Name: "API_KEY", Value: cr.Spec.ApiKey},
 		{Name: "SCRAPE_INTERVAL", Value: scrapeInterval},
 	}
+
+	if tlsSkipVerify {
+		env = append(env, corev1.EnvVar{Name: "INSECURE_SKIP_VERIFY", Value: "true"})
+	}
+	env = append(env, corev1.EnvVar{Name: "METRICS_ENDPOINT", Value: corootURL + "/v1/metrics"})
+	if v := cr.Spec.NodeAgent.LogCollector.CollectLogBasedMetrics; v != nil && !*v {
+		env = append(env, corev1.EnvVar{Name: "DISABLE_LOG_PARSING", Value: "true"})
+	}
+	if v := cr.Spec.NodeAgent.LogCollector.CollectLogEntries; v == nil || *v {
+		env = append(env, corev1.EnvVar{Name: "LOGS_ENDPOINT", Value: corootURL + "/v1/logs"})
+	}
+	if v := cr.Spec.NodeAgent.EbpfTracer; v.Enabled == nil || *v.Enabled {
+		env = append(env, corev1.EnvVar{Name: "TRACES_ENDPOINT", Value: corootURL + "/v1/traces"})
+		if v.Sampling != "" {
+			env = append(env, corev1.EnvVar{Name: "TRACES_SAMPLING", Value: v.Sampling})
+		}
+	}
+	if v := cr.Spec.NodeAgent.EbpfProfiler.Enabled; v == nil || *v {
+		env = append(env, corev1.EnvVar{Name: "PROFILES_ENDPOINT", Value: corootURL + "/v1/profiles"})
+	}
+
 	for _, e := range cr.Spec.NodeAgent.Env {
 		env = append(env, e)
 	}
