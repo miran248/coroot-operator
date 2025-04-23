@@ -69,7 +69,7 @@ func NewCorootReconciler(mgr ctrl.Manager) *CorootReconciler {
 // +kubebuilder:rbac:groups=coroot.com,resources=coroots/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=coroot.com,resources=coroots/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
-// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=namespaces;nodes;pods;endpoints;persistentvolumes,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=services;persistentvolumeclaims;serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments;replicasets;daemonsets;statefulsets;cronjobs,verbs=get;list;watch;create;update;patch;delete
@@ -123,10 +123,8 @@ func (r *CorootReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, nil
 	}
 
-	if cr.Spec.Replicas > 1 && cr.Spec.Postgres == nil {
-		logger.Error(fmt.Errorf("postgres not configured"), "Coroot requires Postgres to run multiple replicas (will run only one replica)")
-		cr.Spec.Replicas = 1
-	}
+	r.corootValidate(ctx, cr)
+
 	r.CreateOrUpdateServiceAccount(ctx, cr, "coroot", sccNonroot)
 	for _, pvc := range r.corootPVCs(cr) {
 		r.CreateOrUpdatePVC(ctx, cr, pvc, cr.Spec.Storage.ReclaimPolicy)
@@ -149,7 +147,7 @@ func (r *CorootReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	if cr.Spec.ExternalClickhouse == nil {
-		r.CreateSecret(ctx, cr, r.clickhouseSecret(cr))
+		r.CreateOrUpdateSecret(ctx, cr, "clickhouse", fmt.Sprintf("%s-clickhouse", cr.Name), "password", 16)
 
 		r.CreateOrUpdateServiceAccount(ctx, cr, "clickhouse-keeper", sccNonroot)
 		r.CreateOrUpdateService(ctx, cr, r.clickhouseKeeperServiceHeadless(cr))
@@ -204,8 +202,28 @@ func (r *CorootReconciler) CreateOrUpdate(ctx context.Context, cr *corootv1.Coro
 	}
 }
 
-func (r *CorootReconciler) CreateSecret(ctx context.Context, cr *corootv1.Coroot, s *corev1.Secret) {
-	r.CreateOrUpdate(ctx, cr, s, false, false, nil)
+func (r *CorootReconciler) CreateOrUpdateSecret(ctx context.Context, cr *corootv1.Coroot, component, name, key string, length int) string {
+	s := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: cr.Namespace,
+			Labels:    Labels(cr, component),
+		},
+	}
+	var data string
+	r.CreateOrUpdate(ctx, cr, s, false, false, func() error {
+		if s.Data == nil {
+			s.Data = map[string][]byte{}
+		}
+		if d, ok := s.Data[key]; ok {
+			data = string(d)
+		} else {
+			data = RandomString(length)
+			s.Data[key] = []byte(data)
+		}
+		return nil
+	})
+	return data
 }
 
 func (r *CorootReconciler) CreateOrUpdateDeployment(ctx context.Context, cr *corootv1.Coroot, d *appsv1.Deployment) {

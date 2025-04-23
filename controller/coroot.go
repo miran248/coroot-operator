@@ -3,6 +3,7 @@ package controller
 import (
 	"bytes"
 	"cmp"
+	"context"
 	"fmt"
 	"strings"
 	"text/template"
@@ -15,7 +16,25 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
+
+func (r *CorootReconciler) corootValidate(ctx context.Context, cr *corootv1.Coroot) {
+	logger := ctrl.Log.WithValues("namespace", cr.Namespace, "name", cr.Name)
+
+	if cr.Spec.Replicas > 1 && cr.Spec.Postgres == nil {
+		logger.Error(fmt.Errorf("postgres not configured"), "Coroot requires Postgres to run multiple replicas (will run only one replica)")
+		cr.Spec.Replicas = 1
+	}
+
+	for _, p := range cr.Spec.Projects {
+		for i, k := range p.ApiKeys {
+			if k.KeySecret != nil {
+				p.ApiKeys[i].Key = r.CreateOrUpdateSecret(ctx, cr, "coroot", k.KeySecret.Name, k.KeySecret.Key, 32)
+			}
+		}
+	}
+}
 
 func (r *CorootReconciler) corootService(cr *corootv1.Coroot) *corev1.Service {
 	ls := Labels(cr, "coroot")
@@ -175,9 +194,6 @@ func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot) *appsv1.Statef
 	if cr.Spec.AuthBootstrapAdminPassword != "" {
 		env = append(env, corev1.EnvVar{Name: "AUTH_BOOTSTRAP_ADMIN_PASSWORD", Value: cr.Spec.AuthBootstrapAdminPassword})
 	}
-	for _, e := range cr.Spec.Env {
-		env = append(env, e)
-	}
 
 	image := r.getAppImage(cr, AppCorootCE)
 	if cr.Spec.EnterpriseEdition != nil {
@@ -257,6 +273,10 @@ func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot) *appsv1.Statef
 
 	if cr.Spec.Ingress != nil && cr.Spec.Ingress.Path != "" {
 		env = append(env, corev1.EnvVar{Name: "URL_BASE_PATH", Value: cr.Spec.Ingress.Path})
+	}
+
+	for _, e := range cr.Spec.Env {
+		env = append(env, e)
 	}
 
 	replicas := int32(cr.Spec.Replicas)

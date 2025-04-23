@@ -13,19 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-func (r *CorootReconciler) clickhouseSecret(cr *corootv1.Coroot) *corev1.Secret {
-	ls := Labels(cr, "clickhouse")
-	s := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-clickhouse", cr.Name),
-			Namespace: cr.Namespace,
-			Labels:    ls,
-		},
-		Data: map[string][]byte{"password": []byte(RandomString(16))},
-	}
-	return s
-}
-
 func (r *CorootReconciler) clickhouseService(cr *corootv1.Coroot) *corev1.Service {
 	ls := Labels(cr, "clickhouse")
 	s := &corev1.Service{
@@ -218,12 +205,7 @@ func (r *CorootReconciler) clickhouseStatefulSets(cr *corootv1.Coroot) []*appsv1
 									},
 								}},
 								{Name: "CLICKHOUSE_PASSWORD", ValueFrom: &corev1.EnvVarSource{
-									SecretKeyRef: &corev1.SecretKeySelector{
-										LocalObjectReference: corev1.LocalObjectReference{
-											Name: fmt.Sprintf("%s-clickhouse", cr.Name),
-										},
-										Key: "password",
-									},
+									SecretKeyRef: secretKeySelector(fmt.Sprintf("%s-clickhouse", cr.Name), "password"),
 								}},
 							},
 							ReadinessProbe: &corev1.Probe{
@@ -241,14 +223,6 @@ func (r *CorootReconciler) clickhouseStatefulSets(cr *corootv1.Coroot) []*appsv1
 								EmptyDir: &corev1.EmptyDirVolumeSource{},
 							},
 						},
-						//{
-						//	Name: "data",
-						//	VolumeSource: corev1.VolumeSource{
-						//		PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-						//			ClaimName: fmt.Sprintf("data-%s-clickhouse-shard-%d", cr.Name, shard),
-						//		},
-						//	},
-						//},
 					},
 				},
 			},

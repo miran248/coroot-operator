@@ -251,9 +251,10 @@ type ProjectSpec struct {
 }
 
 type ApiKeySpec struct {
-	// Random string or UUID (must be unique; required).
-	// +kubebuilder:validation:Required
+	// Plain-text API key. Must be unique. Prefer using KeySecret for better security.
 	Key string `json:"key,omitempty"`
+	// Secret with the API key. Created automatically if missing.
+	KeySecret *corev1.SecretKeySelector `json:"keySecret,omitempty"`
 	// API key description (optional).
 	Description string `json:"description,omitempty"`
 }
