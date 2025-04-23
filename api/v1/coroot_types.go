@@ -21,8 +21,10 @@ type CommunityEditionSpec struct {
 type EnterpriseEditionSpec struct {
 	// License key for Coroot Enterprise Edition.
 	// You can get the Coroot Enterprise license and start a free trial anytime through the Coroot Customer Portal: https://coroot.com/account.
-	LicenseKey string    `json:"licenseKey,omitempty"`
-	Image      ImageSpec `json:"image,omitempty"`
+	LicenseKey string `json:"licenseKey,omitempty"`
+	// Secret containing the license key.
+	LicenseKeySecret *corev1.SecretKeySelector `json:"licenseKeySecret,omitempty"`
+	Image            ImageSpec                 `json:"image,omitempty"`
 }
 
 type AgentsOnlySpec struct {

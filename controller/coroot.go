@@ -196,9 +196,15 @@ func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot) *appsv1.Statef
 	}
 
 	image := r.getAppImage(cr, AppCorootCE)
-	if cr.Spec.EnterpriseEdition != nil {
+	if ee := cr.Spec.EnterpriseEdition; ee != nil {
 		image = r.getAppImage(cr, AppCorootEE)
-		env = append(env, corev1.EnvVar{Name: "LICENSE_KEY", Value: cr.Spec.EnterpriseEdition.LicenseKey})
+		licenseKey := corev1.EnvVar{Name: "LICENSE_KEY"}
+		if ee.LicenseKeySecret != nil {
+			licenseKey.ValueFrom = &corev1.EnvVarSource{SecretKeyRef: ee.LicenseKeySecret}
+		} else {
+			licenseKey.Value = ee.LicenseKey
+		}
+		env = append(env, licenseKey)
 	}
 
 	if ep := cr.Spec.ExternalPrometheus; ep != nil {
