@@ -128,6 +128,7 @@ func (r *CorootReconciler) prometheusDeployment(cr *corootv1.Coroot) *appsv1.Dep
 							"--storage.tsdb.path=/data",
 							"--storage.tsdb.retention.time=" + retention,
 							"--web.enable-remote-write-receiver",
+							"--web.enable-admin-api",
 							"--query.max-samples=100000000",
 						},
 						Ports: []corev1.ContainerPort{
