@@ -260,8 +260,9 @@ func (r *CorootReconciler) CreateOrUpdatePVC(ctx context.Context, cr *corootv1.C
 
 func (r *CorootReconciler) CreateOrUpdateService(ctx context.Context, cr *corootv1.Coroot, s *corev1.Service) {
 	spec := s.Spec
+	annotations := s.Annotations
 	r.CreateOrUpdate(ctx, cr, s, false, false, func() error {
-		err := MergeSpecs(s, &s.Spec, spec, nil)
+		err := MergeSpecs(s, &s.Spec, spec, annotations)
 		s.Spec.Ports = spec.Ports
 		return err
 	})
@@ -299,7 +300,7 @@ func (r *CorootReconciler) CreateOrUpdateClusterRoleBinding(ctx context.Context,
 
 func (r *CorootReconciler) CreateOrUpdateIngress(ctx context.Context, cr *corootv1.Coroot, i *networkingv1.Ingress, delete bool) {
 	spec := i.Spec
-	annotations := i.ObjectMeta.Annotations
+	annotations := i.Annotations
 	r.CreateOrUpdate(ctx, cr, i, delete, false, func() error {
 		return MergeSpecs(i, &i.Spec, spec, annotations)
 	})

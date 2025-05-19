@@ -41,9 +41,10 @@ func (r *CorootReconciler) corootService(cr *corootv1.Coroot) *corev1.Service {
 
 	s := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-coroot", cr.Name),
-			Namespace: cr.Namespace,
-			Labels:    ls,
+			Name:        fmt.Sprintf("%s-coroot", cr.Name),
+			Namespace:   cr.Namespace,
+			Labels:      ls,
+			Annotations: cr.Spec.Service.Annotations,
 		},
 	}
 
@@ -54,7 +55,6 @@ func (r *CorootReconciler) corootService(cr *corootv1.Coroot) *corev1.Service {
 	s.Spec = corev1.ServiceSpec{
 		Selector: ls,
 		Type:     cr.Spec.Service.Type,
-		Annotations: cr.Spec.Service.Annotations,
 		Ports: []corev1.ServicePort{
 			{
 				Name:       "http",
