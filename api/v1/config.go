@@ -4,6 +4,59 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+type SSOSpec struct {
+	Enabled bool `json:"enabled,omitempty"`
+	// Default role for authenticated users (Admin, Editor, Viewer, or a custom role).
+	DefaultRole string `json:"defaultRole,omitempty"`
+	// SAML configuration.
+	SAML *SSOSAMLSpec `json:"saml,omitempty"`
+}
+
+type SSOSAMLSpec struct {
+	// Identity Provider Metadata XML.
+	Metadata string `json:"metadata,omitempty"`
+	// Secret containing the Metadata XML.
+	MetadataSecret *corev1.SecretKeySelector `json:"metadataSecret,omitempty"`
+}
+
+type AISpec struct {
+	// AI model provider (anthropic, openai, or openai_compatible).
+	// +kubebuilder:validation:Enum=anthropic;openai;openai_compatible
+	Provider string `json:"provider"`
+	// Anthropic configuration.
+	Anthropic *AnthropicSpec `json:"anthropic,omitempty"`
+	// OpenAI configuration.
+	OpenAI *OpenAISpec `json:"openai,omitempty"`
+	// OpenAI-compatible configuration.
+	OpenAICompatible *OpenAICompatibleSpec `json:"openaiCompatible,omitempty"`
+}
+
+type AnthropicSpec struct {
+	// Anthropic API key.
+	APIKey string `json:"apiKey,omitempty"`
+	// Secret containing the API key.
+	APIKeySecret *corev1.SecretKeySelector `json:"apiKeySecret,omitempty"`
+}
+
+type OpenAISpec struct {
+	// OpenAI API key.
+	APIKey string `json:"apiKey,omitempty"`
+	// Secret containing the API key.
+	APIKeySecret *corev1.SecretKeySelector `json:"apiKeySecret,omitempty"`
+}
+
+type OpenAICompatibleSpec struct {
+	// API key.
+	APIKey string `json:"apiKey,omitempty"`
+	// Secret containing the API key.
+	APIKeySecret *corev1.SecretKeySelector `json:"apiKeySecret,omitempty"`
+	// Base URL (eg., https://generativelanguage.googleapis.com/v1beta/openai).
+	// +kubebuilder:validation:Pattern="^https?://.+$"
+	BaseUrl string `json:"baseURL"`
+	// Model name (eg., gemini-2.5-pro-preview-06-05).
+	Model string `json:"model"`
+}
+
 type ProjectSpec struct {
 	// Project name (e.g., production, staging; required).
 	// +kubebuilder:validation:Required

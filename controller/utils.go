@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"reflect"
 
+	"github.com/crewjam/saml/samlsp"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -106,4 +107,9 @@ func secretKeySelector(name, key string) *corev1.SecretKeySelector {
 		},
 		Key: key,
 	}
+}
+
+func ValidateSamlIdentityProviderMetadata(metadata string) error {
+	_, err := samlsp.ParseMetadata([]byte(metadata))
+	return err
 }

@@ -974,6 +974,122 @@ spec:
                 required:
                 - corootURL
                 type: object
+              ai:
+                description: AI configuration (Coroot Enterprise Edition only).
+                properties:
+                  anthropic:
+                    description: Anthropic configuration.
+                    properties:
+                      apiKey:
+                        description: Anthropic API key.
+                        type: string
+                      apiKeySecret:
+                        description: Secret containing the API key.
+                        properties:
+                          key:
+                            description: The key of the secret to select from.  Must
+                              be a valid secret key.
+                            type: string
+                          name:
+                            default: ""
+                            description: |-
+                              Name of the referent.
+                              This field is effectively required, but due to backwards compatibility is
+                              allowed to be empty. Instances of this type with an empty value here are
+                              almost certainly wrong.
+                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            type: string
+                          optional:
+                            description: Specify whether the Secret or its key must
+                              be defined
+                            type: boolean
+                        required:
+                        - key
+                        type: object
+                        x-kubernetes-map-type: atomic
+                    type: object
+                  openai:
+                    description: OpenAI configuration.
+                    properties:
+                      apiKey:
+                        description: OpenAI API key.
+                        type: string
+                      apiKeySecret:
+                        description: Secret containing the API key.
+                        properties:
+                          key:
+                            description: The key of the secret to select from.  Must
+                              be a valid secret key.
+                            type: string
+                          name:
+                            default: ""
+                            description: |-
+                              Name of the referent.
+                              This field is effectively required, but due to backwards compatibility is
+                              allowed to be empty. Instances of this type with an empty value here are
+                              almost certainly wrong.
+                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            type: string
+                          optional:
+                            description: Specify whether the Secret or its key must
+                              be defined
+                            type: boolean
+                        required:
+                        - key
+                        type: object
+                        x-kubernetes-map-type: atomic
+                    type: object
+                  openaiCompatible:
+                    description: OpenAI-compatible configuration.
+                    properties:
+                      apiKey:
+                        description: API key.
+                        type: string
+                      apiKeySecret:
+                        description: Secret containing the API key.
+                        properties:
+                          key:
+                            description: The key of the secret to select from.  Must
+                              be a valid secret key.
+                            type: string
+                          name:
+                            default: ""
+                            description: |-
+                              Name of the referent.
+                              This field is effectively required, but due to backwards compatibility is
+                              allowed to be empty. Instances of this type with an empty value here are
+                              almost certainly wrong.
+                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            type: string
+                          optional:
+                            description: Specify whether the Secret or its key must
+                              be defined
+                            type: boolean
+                        required:
+                        - key
+                        type: object
+                        x-kubernetes-map-type: atomic
+                      baseURL:
+                        description: Base URL (eg., https://generativelanguage.googleapis.com/v1beta/openai).
+                        pattern: ^https?://.+$
+                        type: string
+                      model:
+                        description: Model name (eg., gemini-2.5-pro-preview-06-05).
+                        type: string
+                    required:
+                    - baseURL
+                    - model
+                    type: object
+                  provider:
+                    description: AI model provider (anthropic, openai, or openai_compatible).
+                    enum:
+                    - anthropic
+                    - openai
+                    - openai_compatible
+                    type: string
+                required:
+                - provider
+                type: object
               apiKey:
                 description: The API key used by agents when sending telemetry to
                   Coroot.
@@ -7744,6 +7860,48 @@ spec:
                   type:
                     description: Service type (e.g., ClusterIP, NodePort, LoadBalancer).
                     type: string
+                type: object
+              sso:
+                description: Single Sign-On configuration (Coroot Enterprise Edition
+                  only).
+                properties:
+                  defaultRole:
+                    description: Default role for authenticated users (Admin, Editor,
+                      Viewer, or a custom role).
+                    type: string
+                  enabled:
+                    type: boolean
+                  saml:
+                    description: SAML configuration.
+                    properties:
+                      metadata:
+                        description: Identity Provider Metadata XML.
+                        type: string
+                      metadataSecret:
+                        description: Secret containing the Metadata XML.
+                        properties:
+                          key:
+                            description: The key of the secret to select from.  Must
+                              be a valid secret key.
+                            type: string
+                          name:
+                            default: ""
+                            description: |-
+                              Name of the referent.
+                              This field is effectively required, but due to backwards compatibility is
+                              allowed to be empty. Instances of this type with an empty value here are
+                              almost certainly wrong.
+                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            type: string
+                          optional:
+                            description: Specify whether the Secret or its key must
+                              be defined
+                            type: boolean
+                        required:
+                        - key
+                        type: object
+                        x-kubernetes-map-type: atomic
+                    type: object
                 type: object
               storage:
                 description: Storage configuration for Coroot.

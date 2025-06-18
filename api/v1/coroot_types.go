@@ -272,6 +272,10 @@ type CorootSpec struct {
 
 	// Projects configuration (Coroot will create or update the specified projects).
 	Projects []ProjectSpec `json:"projects,omitempty"`
+	// Single Sign-On configuration (Coroot Enterprise Edition only).
+	SSO *SSOSpec `json:"sso,omitempty"`
+	// AI configuration (Coroot Enterprise Edition only).
+	AI *AISpec `json:"ai,omitempty"`
 }
 
 type CorootStatus struct {

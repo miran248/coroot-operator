@@ -109,6 +109,80 @@ func (r *CorootReconciler) validateCoroot(ctx context.Context, cr *corootv1.Coro
 		}
 	}
 
+	if cr.Spec.EnterpriseEdition != nil {
+		if sso := cr.Spec.SSO; sso != nil && sso.Enabled {
+			if saml := sso.SAML; saml != nil {
+				if saml.MetadataSecret != nil {
+					saml.Metadata, err = r.GetSecret(ctx, cr, saml.MetadataSecret.Name, saml.MetadataSecret.Key)
+					if err != nil {
+						logErr("Failed to get SAML Identity Provider Metadata: %s", err.Error())
+					}
+				}
+				if saml.Metadata != "" {
+					if err = ValidateSamlIdentityProviderMetadata(saml.Metadata); err != nil {
+						logErr("Invalid SAML Identity Provider Metadata: %s", err.Error())
+						saml.Metadata = ""
+					}
+				}
+			}
+			if sso.SAML == nil || sso.SAML.Metadata == "" {
+				sso.Enabled = false
+			}
+		}
+		if ai := cr.Spec.AI; ai != nil && ai.Provider != "" {
+			switch ai.Provider {
+			case "anthropic":
+				if anthropic := ai.Anthropic; anthropic != nil {
+					if anthropic.APIKeySecret != nil {
+						anthropic.APIKey, err = r.GetSecret(ctx, cr, anthropic.APIKeySecret.Name, anthropic.APIKeySecret.Key)
+						if err != nil {
+							logErr("Failed to get Anthropic API Key: %s", err.Error())
+						}
+					}
+					if anthropic.APIKey == "" {
+						ai.Anthropic = nil
+					}
+				}
+				if ai.Anthropic == nil {
+					ai.Provider = ""
+				}
+			case "openai":
+				if openai := ai.OpenAI; openai != nil {
+					if openai.APIKeySecret != nil {
+						openai.APIKey, err = r.GetSecret(ctx, cr, openai.APIKeySecret.Name, openai.APIKeySecret.Key)
+						if err != nil {
+							logErr("Failed to get OpenAI API Key: %s", err.Error())
+						}
+					}
+					if openai.APIKey == "" {
+						ai.OpenAI = nil
+					}
+				}
+				if ai.OpenAI == nil {
+					ai.Provider = ""
+				}
+			case "openai_compatible":
+				if openaiCompatible := ai.OpenAICompatible; openaiCompatible != nil {
+					if openaiCompatible.APIKeySecret != nil {
+						openaiCompatible.APIKey, err = r.GetSecret(ctx, cr, openaiCompatible.APIKeySecret.Name, openaiCompatible.APIKeySecret.Key)
+						if err != nil {
+							logErr("Failed to get API Key: %s", err.Error())
+						}
+					}
+					if openaiCompatible.APIKey == "" {
+						ai.OpenAICompatible = nil
+					}
+				}
+				if ai.OpenAICompatible == nil {
+					ai.Provider = ""
+				}
+			default:
+				logErr("Unknown AI model provider: %s", ai.Provider)
+				ai.Provider = ""
+			}
+		}
+	}
+
 	return errors
 }
 
@@ -448,11 +522,16 @@ func corootConfigCmd(filename string, cr *corootv1.Coroot) string {
 	}
 	type Config struct {
 		Projects []Project `json:"projects,omitempty"`
+
+		SSO *corootv1.SSOSpec `json:"sso,omitempty"`
+		AI  *corootv1.AISpec  `json:"ai,omitempty"`
 	}
 	var cfg Config
 	for _, p := range cr.Spec.Projects {
 		cfg.Projects = append(cfg.Projects, Project{ProjectSpec: p, ApiKeysSnake: p.ApiKeys})
 	}
+	cfg.SSO = cr.Spec.SSO
+	cfg.AI = cr.Spec.AI
 	data, _ := yaml.Marshal(cfg)
 	return "cat <<EOF > " + filename + "\n" + string(data) + "EOF"
 }
