@@ -19,6 +19,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 const (
@@ -81,6 +82,7 @@ func NewCorootReconciler(mgr ctrl.Manager) *CorootReconciler {
 
 func (r *CorootReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := ctrl.Log.WithValues("namespace", req.Namespace, "name", req.Name)
+	ctx = log.IntoContext(ctx, logger)
 
 	cr := &corootv1.Coroot{}
 	err := r.Get(ctx, req.NamespacedName, cr)
@@ -107,6 +109,10 @@ func (r *CorootReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	r.instances[req] = true
 	r.instancesLock.Unlock()
 
+	defer func() {
+		_ = r.Status().Update(ctx, cr)
+	}()
+
 	r.CreateOrUpdateRole(ctx, cr, r.openshiftSCCRole(cr, sccNonroot))
 	r.CreateOrUpdateRole(ctx, cr, r.openshiftSCCRole(cr, sccPrivileged))
 
@@ -123,7 +129,7 @@ func (r *CorootReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, nil
 	}
 
-	r.corootValidate(ctx, cr)
+	validationErrors := r.validateCoroot(ctx, cr)
 
 	r.CreateOrUpdateServiceAccount(ctx, cr, "coroot", sccNonroot)
 	for _, pvc := range r.corootPVCs(cr) {
@@ -169,6 +175,13 @@ func (r *CorootReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// TODO: delete
 	}
 
+	if len(validationErrors) > 0 {
+		cr.Status.Status = "Misconfigured"
+		cr.Status.Errors = validationErrors
+		return ctrl.Result{RequeueAfter: time.Minute}, nil
+	}
+	cr.Status.Status = "OK"
+	cr.Status.Errors = nil
 	return ctrl.Result{}, nil
 }
 
@@ -200,6 +213,21 @@ func (r *CorootReconciler) CreateOrUpdate(ctx context.Context, cr *corootv1.Coro
 	if res != controllerutil.OperationResultNone {
 		logger.Info(fmt.Sprintf("%s", res))
 	}
+}
+
+func (r *CorootReconciler) GetSecret(ctx context.Context, cr *corootv1.Coroot, name, key string) (string, error) {
+	s := &corev1.Secret{}
+	s.Name = name
+	s.Namespace = cr.Namespace
+	err := r.Client.Get(ctx, client.ObjectKeyFromObject(s), s)
+	if err != nil {
+		return "", err
+	}
+	data, ok := s.Data[key]
+	if !ok {
+		return "", fmt.Errorf("key '%s' not found in secret '%s'", key, name)
+	}
+	return string(data), nil
 }
 
 func (r *CorootReconciler) CreateOrUpdateSecret(ctx context.Context, cr *corootv1.Coroot, component, name, key string, length int) string {

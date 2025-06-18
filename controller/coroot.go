@@ -1,12 +1,10 @@
 package controller
 
 import (
-	"bytes"
 	"cmp"
 	"context"
 	"fmt"
 	"strings"
-	"text/template"
 
 	corootv1 "github.io/coroot/operator/api/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -16,24 +14,102 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
-	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/yaml"
 )
 
-func (r *CorootReconciler) corootValidate(ctx context.Context, cr *corootv1.Coroot) {
-	logger := ctrl.Log.WithValues("namespace", cr.Namespace, "name", cr.Name)
+func (r *CorootReconciler) validateCoroot(ctx context.Context, cr *corootv1.Coroot) []string {
+	logger := log.FromContext(ctx)
+	var errors []string
+	logErr := func(msg string, args ...any) {
+		e := fmt.Sprintf(msg, args...)
+		errors = append(errors, e)
+		logger.Error(fmt.Errorf("misconfigured"), e)
+	}
 
 	if cr.Spec.Replicas > 1 && cr.Spec.Postgres == nil {
-		logger.Error(fmt.Errorf("postgres not configured"), "Coroot requires Postgres to run multiple replicas (will run only one replica)")
+		logErr("Coroot requires Postgres to run multiple replicas. Falling back to 1 replica.")
 		cr.Spec.Replicas = 1
 	}
 
+	var err error
 	for _, p := range cr.Spec.Projects {
 		for i, k := range p.ApiKeys {
 			if k.KeySecret != nil {
 				p.ApiKeys[i].Key = r.CreateOrUpdateSecret(ctx, cr, "coroot", k.KeySecret.Name, k.KeySecret.Key, 32)
 			}
 		}
+		if p.NotificationIntegrations != nil {
+			if slack := p.NotificationIntegrations.Slack; slack != nil {
+				if slack.TokenSecret != nil {
+					slack.Token, err = r.GetSecret(ctx, cr, slack.TokenSecret.Name, slack.TokenSecret.Key)
+					if err != nil {
+						logErr("Failed to get Slack Token: %s.", err.Error())
+					}
+				}
+				if slack.Token == "" {
+					p.NotificationIntegrations.Slack = nil
+				}
+			}
+			if teams := p.NotificationIntegrations.Teams; teams != nil {
+				if teams.WebhookURLSecret != nil {
+					teams.WebhookURL, err = r.GetSecret(ctx, cr, teams.WebhookURLSecret.Name, teams.WebhookURLSecret.Key)
+					if err != nil {
+						logErr("Failed to get MS Teams Webhook URL: %s.", err.Error())
+					}
+				}
+				if teams.WebhookURL == "" {
+					p.NotificationIntegrations.Teams = nil
+				}
+			}
+			if pagerduty := p.NotificationIntegrations.Pagerduty; pagerduty != nil {
+				if pagerduty.IntegrationKeySecret != nil {
+					pagerduty.IntegrationKey, err = r.GetSecret(ctx, cr, pagerduty.IntegrationKeySecret.Name, pagerduty.IntegrationKeySecret.Key)
+					if err != nil {
+						logErr("Failed to get PagerDuty Integration Key: %s.", err.Error())
+					}
+				}
+				if pagerduty.IntegrationKey == "" {
+					p.NotificationIntegrations.Pagerduty = nil
+				}
+			}
+			if opsgenie := p.NotificationIntegrations.Opsgenie; opsgenie != nil {
+				if opsgenie.ApiKeySecret != nil {
+					opsgenie.ApiKey, err = r.GetSecret(ctx, cr, opsgenie.ApiKeySecret.Name, opsgenie.ApiKeySecret.Key)
+					if err != nil {
+						logErr("Failed to get Opsgenie API Key: %s", err.Error())
+					}
+				}
+				if opsgenie.ApiKey == "" {
+					p.NotificationIntegrations.Opsgenie = nil
+				}
+			}
+			if webhook := p.NotificationIntegrations.Webhook; webhook != nil {
+				if basicAuth := webhook.BasicAuth; basicAuth != nil {
+					if basicAuth.PasswordSecret != nil {
+						basicAuth.Password, err = r.GetSecret(ctx, cr, basicAuth.PasswordSecret.Name, basicAuth.PasswordSecret.Key)
+						if err != nil {
+							logErr("Failed to get Webhook Basic Auth password: %s", err.Error())
+						}
+					}
+					if basicAuth.Username == "" || basicAuth.Password == "" {
+						webhook.BasicAuth = nil
+					}
+				}
+				if webhook.Incidents && webhook.IncidentTemplate == "" {
+					webhook.Incidents = false
+				}
+				if webhook.Deployments && webhook.DeploymentTemplate == "" {
+					webhook.Deployments = false
+				}
+				if webhook.Url == "" {
+					p.NotificationIntegrations.Webhook = nil
+				}
+			}
+		}
 	}
+
+	return errors
 }
 
 func (r *CorootReconciler) corootService(cr *corootv1.Coroot) *corev1.Service {
@@ -366,19 +442,17 @@ func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot) *appsv1.Statef
 }
 
 func corootConfigCmd(filename string, cr *corootv1.Coroot) string {
-	var out bytes.Buffer
-	_ = corootConfigTemplate.Execute(&out, cr.Spec)
-	return "cat <<EOF > " + filename + out.String() + "EOF"
+	type Project struct {
+		corootv1.ProjectSpec
+		ApiKeysSnake []corootv1.ApiKeySpec `json:"api_keys,omitempty"`
+	}
+	type Config struct {
+		Projects []Project `json:"projects,omitempty"`
+	}
+	var cfg Config
+	for _, p := range cr.Spec.Projects {
+		cfg.Projects = append(cfg.Projects, Project{ProjectSpec: p, ApiKeysSnake: p.ApiKeys})
+	}
+	data, _ := yaml.Marshal(cfg)
+	return "cat <<EOF > " + filename + "\n" + string(data) + "EOF"
 }
-
-var corootConfigTemplate = template.Must(template.New("").Parse(`
-projects:
-{{- range $project := .Projects }}
-- name: {{ $project.Name }}
-  api_keys:
-  {{- range $key := $project.ApiKeys }}
-  - key: {{ $key.Key }}
-    description: {{ $key.Description }}
-  {{- end }}
-{{- end }}
-`))

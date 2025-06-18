@@ -4,7 +4,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -34,26 +33,6 @@ type AgentsOnlySpec struct {
 	CorootURL string `json:"corootURL,omitempty"`
 	// Whether to skip verification of the Coroot server's TLS certificate.
 	TLSSkipVerify bool `json:"tlsSkipVerify,omitempty"`
-}
-
-type ServiceSpec struct {
-	// Service type (e.g., ClusterIP, NodePort, LoadBalancer).
-	Type corev1.ServiceType `json:"type,omitempty"`
-	// Service port number.
-	Port int32 `json:"port,omitempty"`
-	// NodePort number (if type is NodePort).
-	NodePort int32 `json:"nodePort,omitempty"`
-	// Annotations for the service.
-	Annotations map[string]string `json:"annotations,omitempty"`
-}
-
-type StorageSpec struct {
-	// Volume size
-	Size resource.Quantity `json:"size,omitempty"`
-	// If not set, the default storage class will be used.
-	ClassName *string `json:"className,omitempty"`
-	// Valid options are Retain (keep PVC), or Delete (default).
-	ReclaimPolicy corev1.PersistentVolumeReclaimPolicy `json:"reclaimPolicy,omitempty"`
 }
 
 type NodeAgentSpec struct {
@@ -151,13 +130,6 @@ type ExternalPrometheusSpec struct {
 	RemoteWriteUrl string `json:"remoteWriteURL,omitempty"`
 }
 
-type BasicAuthSpec struct {
-	Username string `json:"username,omitempty"`
-	Password string `json:"password,omitempty"`
-	// Secret containing password. If specified, this takes precedence over the Password field.
-	PasswordSecret *corev1.SecretKeySelector `json:"passwordSecret,omitempty"`
-}
-
 type ClickhouseSpec struct {
 	Shards   int `json:"shards,omitempty"`
 	Replicas int `json:"replicas,omitempty"`
@@ -232,37 +204,6 @@ type IngressSpec struct {
 	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
-// ImageSpec defines the configuration for specifying an image repository, tag, pull policy, and pull secrets.
-// If unspecified, the operator will automatically update its components to the latest versions from Coroot's public registry.
-type ImageSpec struct {
-	// Name specifies the full image reference, including registry, component, and tag.
-	// E.g.: <private-registry>/<component-name>:<component-version>
-	Name string `json:"name,omitempty"`
-	// PullPolicy defines the image pull policy (e.g., Always, IfNotPresent, Never).
-	PullPolicy corev1.PullPolicy `json:"pullPolicy,omitempty"`
-	// PullSecrets contains a list of references to Kubernetes secrets used for pulling the image from a private registry.
-	PullSecrets []corev1.LocalObjectReference `json:"pullSecrets,omitempty"`
-}
-
-type ProjectSpec struct {
-	// Project name (e.g., production, staging; required).
-	// +kubebuilder:validation:Required
-	Name string `json:"name,omitempty"`
-	// Project API keys, used by agents to send telemetry data (required).
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinItems=1
-	ApiKeys []ApiKeySpec `json:"apiKeys,omitempty"`
-}
-
-type ApiKeySpec struct {
-	// Plain-text API key. Must be unique. Prefer using KeySecret for better security.
-	Key string `json:"key,omitempty"`
-	// Secret with the API key. Created automatically if missing.
-	KeySecret *corev1.SecretKeySelector `json:"keySecret,omitempty"`
-	// API key description (optional).
-	Description string `json:"description,omitempty"`
-}
-
 type CorootSpec struct {
 	// Specifies the metric resolution interval.
 	// +kubebuilder:validation:Pattern="^[0-9]+[sm]$"
@@ -283,8 +224,6 @@ type CorootSpec struct {
 	AuthAnonymousRole string `json:"authAnonymousRole,omitempty"`
 	// Initial admin password for bootstrapping.
 	AuthBootstrapAdminPassword string `json:"authBootstrapAdminPassword,omitempty"`
-	// Projects configuration (Coroot will create or update projects the specified projects).
-	Projects []ProjectSpec `json:"projects,omitempty"`
 	// Environment variables for Coroot.
 	Env []corev1.EnvVar `json:"env,omitempty"`
 
@@ -330,19 +269,14 @@ type CorootSpec struct {
 
 	// Store configuration in a Postgres DB instead of SQLite (required if replicas > 1).
 	Postgres *PostgresSpec `json:"postgres,omitempty"`
+
+	// Projects configuration (Coroot will create or update the specified projects).
+	Projects []ProjectSpec `json:"projects,omitempty"`
 }
 
-type CorootStatus struct { // TODO
-	// Represents the observations of a Coroot's current state.
-	// Coroot.status.conditions.type are: "Available", "Progressing", and "Degraded"
-	// Coroot.status.conditions.status are one of True, False, Unknown.
-	// Coroot.status.conditions.reason the value should be a CamelCase string and producers of specific
-	// condition types may define expected values and meanings for this field, and whether the values
-	// are considered a guaranteed API.
-	// Coroot.status.conditions.Message is a human-readable message indicating details about the transition.
-	// For further information see: https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
-
-	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
+type CorootStatus struct {
+	Status string   `json:"status"`
+	Errors []string `json:"errors,omitempty"`
 }
 
 // +kubebuilder:object:root=true
