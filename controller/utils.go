@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"hash/crc32"
 	"math/big"
 	"reflect"
 
@@ -112,4 +113,13 @@ func secretKeySelector(name, key string) *corev1.SecretKeySelector {
 func ValidateSamlIdentityProviderMetadata(metadata string) error {
 	_, err := samlsp.ParseMetadata([]byte(metadata))
 	return err
+}
+
+type ConfigEnvs map[string]*corev1.SecretKeySelector
+
+func (ce ConfigEnvs) Add(selector *corev1.SecretKeySelector) string {
+	hash := crc32.ChecksumIEEE([]byte(selector.Name + "/" + selector.Key))
+	name := fmt.Sprintf("COROOT_CONFIG_SECRET_%X", hash)
+	ce[name] = selector
+	return fmt.Sprintf(`${%s}`, name)
 }

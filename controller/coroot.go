@@ -3,6 +3,8 @@ package controller
 import (
 	"cmp"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"strings"
 
@@ -18,7 +20,7 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-func (r *CorootReconciler) validateCoroot(ctx context.Context, cr *corootv1.Coroot) []string {
+func (r *CorootReconciler) validateCoroot(ctx context.Context, cr *corootv1.Coroot, configEnvs ConfigEnvs) []string {
 	logger := log.FromContext(ctx)
 	var errors []string
 	logErr := func(msg string, args ...any) {
@@ -36,16 +38,20 @@ func (r *CorootReconciler) validateCoroot(ctx context.Context, cr *corootv1.Coro
 	for _, p := range cr.Spec.Projects {
 		for i, k := range p.ApiKeys {
 			if k.KeySecret != nil {
-				p.ApiKeys[i].Key = r.CreateOrUpdateSecret(ctx, cr, "coroot", k.KeySecret.Name, k.KeySecret.Key, 32)
+				r.CreateOrUpdateSecret(ctx, cr, "coroot", k.KeySecret.Name, k.KeySecret.Key, 32)
+				p.ApiKeys[i].Key = configEnvs.Add(k.KeySecret)
+				p.ApiKeys[i].KeySecret = nil
 			}
 		}
 		if p.NotificationIntegrations != nil {
 			if slack := p.NotificationIntegrations.Slack; slack != nil {
 				if slack.TokenSecret != nil {
-					slack.Token, err = r.GetSecret(ctx, cr, slack.TokenSecret.Name, slack.TokenSecret.Key)
-					if err != nil {
+					if _, err = r.GetSecret(ctx, cr, slack.TokenSecret); err != nil {
 						logErr("Failed to get Slack Token: %s.", err.Error())
+					} else {
+						slack.Token = configEnvs.Add(slack.TokenSecret)
 					}
+					slack.TokenSecret = nil
 				}
 				if slack.Token == "" {
 					p.NotificationIntegrations.Slack = nil
@@ -53,10 +59,12 @@ func (r *CorootReconciler) validateCoroot(ctx context.Context, cr *corootv1.Coro
 			}
 			if teams := p.NotificationIntegrations.Teams; teams != nil {
 				if teams.WebhookURLSecret != nil {
-					teams.WebhookURL, err = r.GetSecret(ctx, cr, teams.WebhookURLSecret.Name, teams.WebhookURLSecret.Key)
-					if err != nil {
+					if _, err = r.GetSecret(ctx, cr, teams.WebhookURLSecret); err != nil {
 						logErr("Failed to get MS Teams Webhook URL: %s.", err.Error())
+					} else {
+						teams.WebhookURL = configEnvs.Add(teams.WebhookURLSecret)
 					}
+					teams.WebhookURLSecret = nil
 				}
 				if teams.WebhookURL == "" {
 					p.NotificationIntegrations.Teams = nil
@@ -64,10 +72,12 @@ func (r *CorootReconciler) validateCoroot(ctx context.Context, cr *corootv1.Coro
 			}
 			if pagerduty := p.NotificationIntegrations.Pagerduty; pagerduty != nil {
 				if pagerduty.IntegrationKeySecret != nil {
-					pagerduty.IntegrationKey, err = r.GetSecret(ctx, cr, pagerduty.IntegrationKeySecret.Name, pagerduty.IntegrationKeySecret.Key)
-					if err != nil {
+					if _, err = r.GetSecret(ctx, cr, pagerduty.IntegrationKeySecret); err != nil {
 						logErr("Failed to get PagerDuty Integration Key: %s.", err.Error())
+					} else {
+						pagerduty.IntegrationKey = configEnvs.Add(pagerduty.IntegrationKeySecret)
 					}
+					pagerduty.IntegrationKeySecret = nil
 				}
 				if pagerduty.IntegrationKey == "" {
 					p.NotificationIntegrations.Pagerduty = nil
@@ -75,10 +85,12 @@ func (r *CorootReconciler) validateCoroot(ctx context.Context, cr *corootv1.Coro
 			}
 			if opsgenie := p.NotificationIntegrations.Opsgenie; opsgenie != nil {
 				if opsgenie.ApiKeySecret != nil {
-					opsgenie.ApiKey, err = r.GetSecret(ctx, cr, opsgenie.ApiKeySecret.Name, opsgenie.ApiKeySecret.Key)
-					if err != nil {
+					if _, err = r.GetSecret(ctx, cr, opsgenie.ApiKeySecret); err != nil {
 						logErr("Failed to get Opsgenie API Key: %s", err.Error())
+					} else {
+						opsgenie.ApiKey = configEnvs.Add(opsgenie.ApiKeySecret)
 					}
+					opsgenie.ApiKeySecret = nil
 				}
 				if opsgenie.ApiKey == "" {
 					p.NotificationIntegrations.Opsgenie = nil
@@ -87,10 +99,12 @@ func (r *CorootReconciler) validateCoroot(ctx context.Context, cr *corootv1.Coro
 			if webhook := p.NotificationIntegrations.Webhook; webhook != nil {
 				if basicAuth := webhook.BasicAuth; basicAuth != nil {
 					if basicAuth.PasswordSecret != nil {
-						basicAuth.Password, err = r.GetSecret(ctx, cr, basicAuth.PasswordSecret.Name, basicAuth.PasswordSecret.Key)
-						if err != nil {
+						if _, err = r.GetSecret(ctx, cr, basicAuth.PasswordSecret); err != nil {
 							logErr("Failed to get Webhook Basic Auth password: %s", err.Error())
+						} else {
+							basicAuth.Password = configEnvs.Add(basicAuth.PasswordSecret)
 						}
+						basicAuth.PasswordSecret = nil
 					}
 					if basicAuth.Username == "" || basicAuth.Password == "" {
 						webhook.BasicAuth = nil
@@ -109,17 +123,25 @@ func (r *CorootReconciler) validateCoroot(ctx context.Context, cr *corootv1.Coro
 		}
 	}
 
-	if cr.Spec.EnterpriseEdition != nil {
+	if ee := cr.Spec.EnterpriseEdition; ee != nil {
+		if ee.LicenseKeySecret != nil {
+			if _, err = r.GetSecret(ctx, cr, ee.LicenseKeySecret); err != nil {
+				logErr("Failed to get License Key: %s.", err.Error())
+			}
+		}
 		if sso := cr.Spec.SSO; sso != nil && sso.Enabled {
 			if saml := sso.SAML; saml != nil {
+				metadata := saml.Metadata
 				if saml.MetadataSecret != nil {
-					saml.Metadata, err = r.GetSecret(ctx, cr, saml.MetadataSecret.Name, saml.MetadataSecret.Key)
-					if err != nil {
+					if metadata, err = r.GetSecret(ctx, cr, saml.MetadataSecret); err != nil {
 						logErr("Failed to get SAML Identity Provider Metadata: %s", err.Error())
+					} else {
+						saml.Metadata = configEnvs.Add(saml.MetadataSecret)
 					}
+					saml.MetadataSecret = nil
 				}
-				if saml.Metadata != "" {
-					if err = ValidateSamlIdentityProviderMetadata(saml.Metadata); err != nil {
+				if metadata != "" {
+					if err = ValidateSamlIdentityProviderMetadata(metadata); err != nil {
 						logErr("Invalid SAML Identity Provider Metadata: %s", err.Error())
 						saml.Metadata = ""
 					}
@@ -134,10 +156,12 @@ func (r *CorootReconciler) validateCoroot(ctx context.Context, cr *corootv1.Coro
 			case "anthropic":
 				if anthropic := ai.Anthropic; anthropic != nil {
 					if anthropic.APIKeySecret != nil {
-						anthropic.APIKey, err = r.GetSecret(ctx, cr, anthropic.APIKeySecret.Name, anthropic.APIKeySecret.Key)
-						if err != nil {
+						if _, err = r.GetSecret(ctx, cr, anthropic.APIKeySecret); err != nil {
 							logErr("Failed to get Anthropic API Key: %s", err.Error())
+						} else {
+							anthropic.APIKey = configEnvs.Add(anthropic.APIKeySecret)
 						}
+						anthropic.APIKeySecret = nil
 					}
 					if anthropic.APIKey == "" {
 						ai.Anthropic = nil
@@ -149,10 +173,12 @@ func (r *CorootReconciler) validateCoroot(ctx context.Context, cr *corootv1.Coro
 			case "openai":
 				if openai := ai.OpenAI; openai != nil {
 					if openai.APIKeySecret != nil {
-						openai.APIKey, err = r.GetSecret(ctx, cr, openai.APIKeySecret.Name, openai.APIKeySecret.Key)
-						if err != nil {
+						if _, err = r.GetSecret(ctx, cr, openai.APIKeySecret); err != nil {
 							logErr("Failed to get OpenAI API Key: %s", err.Error())
+						} else {
+							openai.APIKey = configEnvs.Add(openai.APIKeySecret)
 						}
+						openai.APIKeySecret = nil
 					}
 					if openai.APIKey == "" {
 						ai.OpenAI = nil
@@ -164,10 +190,12 @@ func (r *CorootReconciler) validateCoroot(ctx context.Context, cr *corootv1.Coro
 			case "openai_compatible":
 				if openaiCompatible := ai.OpenAICompatible; openaiCompatible != nil {
 					if openaiCompatible.APIKeySecret != nil {
-						openaiCompatible.APIKey, err = r.GetSecret(ctx, cr, openaiCompatible.APIKeySecret.Name, openaiCompatible.APIKeySecret.Key)
-						if err != nil {
+						if _, err = r.GetSecret(ctx, cr, openaiCompatible.APIKeySecret); err != nil {
 							logErr("Failed to get API Key: %s", err.Error())
+						} else {
+							openaiCompatible.APIKey = configEnvs.Add(openaiCompatible.APIKeySecret)
 						}
+						openaiCompatible.APIKeySecret = nil
 					}
 					if openaiCompatible.APIKey == "" {
 						ai.OpenAICompatible = nil
@@ -311,7 +339,7 @@ func (r *CorootReconciler) corootDeployment(cr *corootv1.Coroot) *appsv1.Deploym
 	return d
 }
 
-func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot) *appsv1.StatefulSet {
+func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot, configEnvs ConfigEnvs, configHash string) *appsv1.StatefulSet {
 	ls := Labels(cr, "coroot")
 	ss := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -432,9 +460,19 @@ func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot) *appsv1.Statef
 		env = append(env, corev1.EnvVar{Name: "URL_BASE_PATH", Value: cr.Spec.Ingress.Path})
 	}
 
+	for name, selector := range configEnvs {
+		env = append(env, corev1.EnvVar{Name: name, ValueFrom: &corev1.EnvVarSource{SecretKeyRef: selector}})
+	}
+
 	for _, e := range cr.Spec.Env {
 		env = append(env, e)
 	}
+
+	podAnnotations := cr.Spec.PodAnnotations
+	if podAnnotations == nil {
+		podAnnotations = map[string]string{}
+	}
+	podAnnotations["checksum/config"] = configHash
 
 	replicas := int32(cr.Spec.Replicas)
 	if replicas <= 0 {
@@ -455,7 +493,7 @@ func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot) *appsv1.Statef
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels:      ls,
-				Annotations: cr.Spec.PodAnnotations,
+				Annotations: podAnnotations,
 			},
 			Spec: corev1.PodSpec{
 				ServiceAccountName: cr.Name + "-coroot",
@@ -464,16 +502,6 @@ func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot) *appsv1.Statef
 				Affinity:           cr.Spec.Affinity,
 				Tolerations:        cr.Spec.Tolerations,
 				ImagePullSecrets:   image.PullSecrets,
-				InitContainers: []corev1.Container{
-					{
-						Image:           image.Name,
-						ImagePullPolicy: image.PullPolicy,
-						Name:            "config",
-						Command:         []string{"/bin/sh", "-c"},
-						Args:            []string{corootConfigCmd("/config/config.yaml", cr)},
-						VolumeMounts:    []corev1.VolumeMount{{Name: "config", MountPath: "/config"}},
-					},
-				},
 				Containers: []corev1.Container{
 					{
 						Image:           image.Name,
@@ -504,7 +532,11 @@ func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot) *appsv1.Statef
 					{
 						Name: "config",
 						VolumeSource: corev1.VolumeSource{
-							EmptyDir: &corev1.EmptyDirVolumeSource{},
+							ConfigMap: &corev1.ConfigMapVolumeSource{
+								LocalObjectReference: corev1.LocalObjectReference{
+									Name: cr.Name + "-coroot",
+								},
+							},
 						},
 					},
 				},
@@ -515,23 +547,33 @@ func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot) *appsv1.Statef
 	return ss
 }
 
-func corootConfigCmd(filename string, cr *corootv1.Coroot) string {
-	type Project struct {
-		corootv1.ProjectSpec
-		ApiKeysSnake []corootv1.ApiKeySpec `json:"api_keys,omitempty"`
+func (r *CorootReconciler) corootConfigMap(ctx context.Context, cr *corootv1.Coroot) (*corev1.ConfigMap, string) {
+	ls := Labels(cr, "coroot")
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      cr.Name + "-coroot",
+			Namespace: cr.Namespace,
+			Labels:    ls,
+		},
+		BinaryData: map[string][]byte{},
 	}
-	type Config struct {
-		Projects []Project `json:"projects,omitempty"`
 
-		SSO *corootv1.SSOSpec `json:"sso,omitempty"`
-		AI  *corootv1.AISpec  `json:"ai,omitempty"`
+	var cfg = struct {
+		Projects []corootv1.ProjectSpec `json:"projects,omitempty"`
+		SSO      *corootv1.SSOSpec      `json:"sso,omitempty"`
+		AI       *corootv1.AISpec       `json:"ai,omitempty"`
+	}{
+		Projects: cr.Spec.Projects,
+		SSO:      cr.Spec.SSO,
+		AI:       cr.Spec.AI,
 	}
-	var cfg Config
-	for _, p := range cr.Spec.Projects {
-		cfg.Projects = append(cfg.Projects, Project{ProjectSpec: p, ApiKeysSnake: p.ApiKeys})
+
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		log.FromContext(ctx).Error(err, "Failed to marshal coroot config")
 	}
-	cfg.SSO = cr.Spec.SSO
-	cfg.AI = cr.Spec.AI
-	data, _ := yaml.Marshal(cfg)
-	return "cat <<EOF > " + filename + "\n" + string(data) + "EOF"
+	cm.BinaryData["config.yaml"] = data
+	hash := sha256.New()
+	hash.Write(data)
+	return cm, hex.EncodeToString(hash.Sum(nil))
 }

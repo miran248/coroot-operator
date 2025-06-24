@@ -43,7 +43,7 @@ func (r *CorootReconciler) clusterAgentClusterRole(cr *corootv1.Coroot) *rbacv1.
 		Rules: []rbacv1.PolicyRule{
 			{
 				APIGroups: []string{""},
-				Resources: []string{"namespaces", "nodes", "pods", "services", "endpoints", "persistentvolumeclaims", "persistentvolumes", "secrets"},
+				Resources: []string{"namespaces", "nodes", "pods", "services", "endpoints", "persistentvolumeclaims", "persistentvolumes", "secrets", "events"},
 				Verbs:     verbs,
 			},
 			{

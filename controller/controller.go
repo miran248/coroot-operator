@@ -69,10 +69,7 @@ func NewCorootReconciler(mgr ctrl.Manager) *CorootReconciler {
 // +kubebuilder:rbac:groups=coroot.com,resources=coroots,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=coroot.com,resources=coroots/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=coroot.com,resources=coroots/finalizers,verbs=update
-// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
-// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="",resources=namespaces;nodes;pods;endpoints;persistentvolumes,verbs=get;list;watch
-// +kubebuilder:rbac:groups="",resources=services;persistentvolumeclaims;serviceaccounts,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=namespaces;nodes;pods;services;endpoints;persistentvolumes;persistentvolumeclaims;serviceaccounts;configmaps;secrets;events,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments;replicasets;daemonsets;statefulsets;cronjobs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=batch,resources=cronjobs;jobs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=storage.k8s.io,resources=storageclasses;volumeattachments,verbs=get;list;watch;create;update;patch;delete
@@ -129,13 +126,16 @@ func (r *CorootReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, nil
 	}
 
-	validationErrors := r.validateCoroot(ctx, cr)
+	configEnvs := ConfigEnvs{}
+	validationErrors := r.validateCoroot(ctx, cr, configEnvs)
 
 	r.CreateOrUpdateServiceAccount(ctx, cr, "coroot", sccNonroot)
 	for _, pvc := range r.corootPVCs(cr) {
 		r.CreateOrUpdatePVC(ctx, cr, pvc, cr.Spec.Storage.ReclaimPolicy)
 	}
-	r.CreateOrUpdateStatefulSet(ctx, cr, r.corootStatefulSet(cr))
+	corootConfigMap, corootConfigHash := r.corootConfigMap(ctx, cr)
+	r.CreateOrUpdateConfigMap(ctx, cr, corootConfigMap)
+	r.CreateOrUpdateStatefulSet(ctx, cr, r.corootStatefulSet(cr, configEnvs, corootConfigHash))
 	r.CreateOrUpdateService(ctx, cr, r.corootService(cr))
 	if !r.deploymentDeleted {
 		_ = r.Delete(ctx, r.corootDeployment(cr))
@@ -215,17 +215,17 @@ func (r *CorootReconciler) CreateOrUpdate(ctx context.Context, cr *corootv1.Coro
 	}
 }
 
-func (r *CorootReconciler) GetSecret(ctx context.Context, cr *corootv1.Coroot, name, key string) (string, error) {
+func (r *CorootReconciler) GetSecret(ctx context.Context, cr *corootv1.Coroot, selector *corev1.SecretKeySelector) (string, error) {
 	s := &corev1.Secret{}
-	s.Name = name
+	s.Name = selector.Name
 	s.Namespace = cr.Namespace
 	err := r.Client.Get(ctx, client.ObjectKeyFromObject(s), s)
 	if err != nil {
 		return "", err
 	}
-	data, ok := s.Data[key]
+	data, ok := s.Data[selector.Key]
 	if !ok {
-		return "", fmt.Errorf("key '%s' not found in secret '%s'", key, name)
+		return "", fmt.Errorf("key '%s' not found in secret '%s'", selector.Key, selector.Name)
 	}
 	return string(data), nil
 }
@@ -252,6 +252,14 @@ func (r *CorootReconciler) CreateOrUpdateSecret(ctx context.Context, cr *corootv
 		return nil
 	})
 	return data
+}
+
+func (r *CorootReconciler) CreateOrUpdateConfigMap(ctx context.Context, cr *corootv1.Coroot, cm *corev1.ConfigMap) {
+	data := cm.BinaryData
+	r.CreateOrUpdate(ctx, cr, cm, false, false, func() error {
+		cm.BinaryData = data
+		return nil
+	})
 }
 
 func (r *CorootReconciler) CreateOrUpdateDeployment(ctx context.Context, cr *corootv1.Coroot, d *appsv1.Deployment) {
