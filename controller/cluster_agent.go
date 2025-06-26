@@ -76,7 +76,7 @@ func (r *CorootReconciler) clusterAgentDeployment(cr *corootv1.Coroot) *appsv1.D
 		},
 	}
 
-	corootURL := fmt.Sprintf("http://%s-coroot.%s:8080", cr.Name, cr.Namespace)
+	corootURL := fmt.Sprintf("http://%s-coroot.%s:%d", cr.Name, cr.Namespace, cr.Spec.Service.Port)
 	var tlsSkipVerify bool
 	if cr.Spec.AgentsOnly != nil && cr.Spec.AgentsOnly.CorootURL != "" {
 		corootURL = cr.Spec.AgentsOnly.CorootURL

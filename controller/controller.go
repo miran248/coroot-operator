@@ -113,6 +113,9 @@ func (r *CorootReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	r.CreateOrUpdateRole(ctx, cr, r.openshiftSCCRole(cr, sccNonroot))
 	r.CreateOrUpdateRole(ctx, cr, r.openshiftSCCRole(cr, sccPrivileged))
 
+	configEnvs := ConfigEnvs{}
+	validationErrors := r.validateCoroot(ctx, cr, configEnvs)
+
 	r.CreateOrUpdateServiceAccount(ctx, cr, "node-agent", sccPrivileged)
 	r.CreateOrUpdateDaemonSet(ctx, cr, r.nodeAgentDaemonSet(cr))
 
@@ -125,9 +128,6 @@ func (r *CorootReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// TODO: delete
 		return ctrl.Result{}, nil
 	}
-
-	configEnvs := ConfigEnvs{}
-	validationErrors := r.validateCoroot(ctx, cr, configEnvs)
 
 	r.CreateOrUpdateServiceAccount(ctx, cr, "coroot", sccNonroot)
 	for _, pvc := range r.corootPVCs(cr) {

@@ -34,6 +34,10 @@ func (r *CorootReconciler) validateCoroot(ctx context.Context, cr *corootv1.Coro
 		cr.Spec.Replicas = 1
 	}
 
+	if cr.Spec.Service.Port == 0 {
+		cr.Spec.Service.Port = 8080
+	}
+
 	var err error
 	for _, p := range cr.Spec.Projects {
 		for i, k := range p.ApiKeys {
@@ -226,10 +230,6 @@ func (r *CorootReconciler) corootService(cr *corootv1.Coroot) *corev1.Service {
 		},
 	}
 
-	port := cr.Spec.Service.Port
-	if port == 0 {
-		port = 8080
-	}
 	s.Spec = corev1.ServiceSpec{
 		Selector: ls,
 		Type:     cr.Spec.Service.Type,
@@ -237,7 +237,7 @@ func (r *CorootReconciler) corootService(cr *corootv1.Coroot) *corev1.Service {
 			{
 				Name:       "http",
 				Protocol:   corev1.ProtocolTCP,
-				Port:       port,
+				Port:       cr.Spec.Service.Port,
 				TargetPort: intstr.FromString("http"),
 				NodePort:   cr.Spec.Service.NodePort,
 			},

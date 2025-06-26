@@ -23,7 +23,7 @@ func (r *CorootReconciler) nodeAgentDaemonSet(cr *corootv1.Coroot) *appsv1.Daemo
 		},
 	}
 
-	corootURL := fmt.Sprintf("http://%s-coroot.%s:8080", cr.Name, cr.Namespace)
+	corootURL := fmt.Sprintf("http://%s-coroot.%s:%d", cr.Name, cr.Namespace, cr.Spec.Service.Port)
 	var tlsSkipVerify bool
 	if cr.Spec.AgentsOnly != nil && cr.Spec.AgentsOnly.CorootURL != "" {
 		corootURL = strings.TrimRight(cr.Spec.AgentsOnly.CorootURL, "/")
