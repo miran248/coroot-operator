@@ -101,6 +101,13 @@ func MergeSpecs[T any](obj client.Object, currentSpec *T, targetSpec T, targetAn
 	return nil
 }
 
+func envVarFromSecret(name string, secret *corev1.SecretKeySelector, plainTextValue string) corev1.EnvVar {
+	if secret == nil {
+		return corev1.EnvVar{Name: name, Value: plainTextValue}
+	}
+	return corev1.EnvVar{Name: name, ValueFrom: &corev1.EnvVarSource{SecretKeyRef: secret}}
+}
+
 func secretKeySelector(name, key string) *corev1.SecretKeySelector {
 	return &corev1.SecretKeySelector{
 		LocalObjectReference: corev1.LocalObjectReference{

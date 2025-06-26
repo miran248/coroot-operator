@@ -89,13 +89,7 @@ func (r *CorootReconciler) clusterAgentDeployment(cr *corootv1.Coroot) *appsv1.D
 		{Name: "KUBE_STATE_METRICS_ADDRESS", Value: "127.0.0.1:10302"},
 	}
 
-	apiKey := corev1.EnvVar{Name: "API_KEY"}
-	if cr.Spec.ApiKeySecret != nil {
-		apiKey.ValueFrom = &corev1.EnvVarSource{SecretKeyRef: cr.Spec.ApiKeySecret}
-	} else {
-		apiKey.Value = cr.Spec.ApiKey
-	}
-	env = append(env, apiKey)
+	env = append(env, envVarFromSecret("API_KEY", cr.Spec.ApiKeySecret, cr.Spec.ApiKey))
 
 	if tlsSkipVerify {
 		env = append(env, corev1.EnvVar{Name: "INSECURE_SKIP_VERIFY", Value: "true"})

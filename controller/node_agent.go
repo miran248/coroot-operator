@@ -34,13 +34,7 @@ func (r *CorootReconciler) nodeAgentDaemonSet(cr *corootv1.Coroot) *appsv1.Daemo
 		{Name: "SCRAPE_INTERVAL", Value: scrapeInterval},
 	}
 
-	apiKey := corev1.EnvVar{Name: "API_KEY"}
-	if cr.Spec.ApiKeySecret != nil {
-		apiKey.ValueFrom = &corev1.EnvVarSource{SecretKeyRef: cr.Spec.ApiKeySecret}
-	} else {
-		apiKey.Value = cr.Spec.ApiKey
-	}
-	env = append(env, apiKey)
+	env = append(env, envVarFromSecret("API_KEY", cr.Spec.ApiKeySecret, cr.Spec.ApiKey))
 
 	if tlsSkipVerify {
 		env = append(env, corev1.EnvVar{Name: "INSECURE_SKIP_VERIFY", Value: "true"})

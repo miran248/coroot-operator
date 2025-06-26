@@ -224,6 +224,8 @@ type CorootSpec struct {
 	AuthAnonymousRole string `json:"authAnonymousRole,omitempty"`
 	// Initial admin password for bootstrapping.
 	AuthBootstrapAdminPassword string `json:"authBootstrapAdminPassword,omitempty"`
+	// Secret containing the initial admin password.
+	AuthBootstrapAdminPasswordSecret *corev1.SecretKeySelector `json:"authBootstrapAdminPasswordSecret,omitempty"`
 	// Environment variables for Coroot.
 	Env []corev1.EnvVar `json:"env,omitempty"`
 

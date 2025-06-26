@@ -39,6 +39,15 @@ func (r *CorootReconciler) validateCoroot(ctx context.Context, cr *corootv1.Coro
 	}
 
 	var err error
+
+	if s := cr.Spec.AuthBootstrapAdminPasswordSecret; s != nil {
+		if _, err = r.GetSecret(ctx, cr, s); err != nil {
+			logErr("Failed to get Admin Password: %s.", err.Error())
+			cr.Spec.AuthBootstrapAdminPasswordSecret = nil
+			cr.Spec.AuthBootstrapAdminPassword = ""
+		}
+	}
+
 	for _, p := range cr.Spec.Projects {
 		for i, k := range p.ApiKeys {
 			if k.KeySecret != nil {
@@ -370,20 +379,15 @@ func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot, configEnvs Con
 	if cr.Spec.AuthAnonymousRole != "" {
 		env = append(env, corev1.EnvVar{Name: "AUTH_ANONYMOUS_ROLE", Value: cr.Spec.AuthAnonymousRole})
 	}
-	if cr.Spec.AuthBootstrapAdminPassword != "" {
-		env = append(env, corev1.EnvVar{Name: "AUTH_BOOTSTRAP_ADMIN_PASSWORD", Value: cr.Spec.AuthBootstrapAdminPassword})
+
+	if cr.Spec.AuthBootstrapAdminPassword != "" || cr.Spec.AuthBootstrapAdminPasswordSecret != nil {
+		env = append(env, envVarFromSecret("AUTH_BOOTSTRAP_ADMIN_PASSWORD", cr.Spec.AuthBootstrapAdminPasswordSecret, cr.Spec.AuthBootstrapAdminPassword))
 	}
 
 	image := r.getAppImage(cr, AppCorootCE)
 	if ee := cr.Spec.EnterpriseEdition; ee != nil {
 		image = r.getAppImage(cr, AppCorootEE)
-		licenseKey := corev1.EnvVar{Name: "LICENSE_KEY"}
-		if ee.LicenseKeySecret != nil {
-			licenseKey.ValueFrom = &corev1.EnvVarSource{SecretKeyRef: ee.LicenseKeySecret}
-		} else {
-			licenseKey.Value = ee.LicenseKey
-		}
-		env = append(env, licenseKey)
+		env = append(env, envVarFromSecret("LICENSE_KEY", ee.LicenseKeySecret, ee.LicenseKey))
 	}
 
 	if ep := cr.Spec.ExternalPrometheus; ep != nil {
@@ -402,13 +406,7 @@ func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot, configEnvs Con
 		}
 		if basicAuth := ep.BasicAuth; basicAuth != nil {
 			env = append(env, corev1.EnvVar{Name: "GLOBAL_PROMETHEUS_USER", Value: basicAuth.Username})
-			password := corev1.EnvVar{Name: "GLOBAL_PROMETHEUS_PASSWORD"}
-			if basicAuth.PasswordSecret != nil {
-				password.ValueFrom = &corev1.EnvVarSource{SecretKeyRef: basicAuth.PasswordSecret}
-			} else {
-				password.Value = basicAuth.Password
-			}
-			env = append(env, password)
+			env = append(env, envVarFromSecret("GLOBAL_PROMETHEUS_PASSWORD", basicAuth.PasswordSecret, basicAuth.Password))
 		}
 		if ep.RemoteWriteUrl != "" {
 			env = append(env, corev1.EnvVar{Name: "GLOBAL_PROMETHEUS_REMOTE_WRITE_URL", Value: ep.RemoteWriteUrl})
@@ -425,13 +423,7 @@ func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot, configEnvs Con
 			corev1.EnvVar{Name: "GLOBAL_CLICKHOUSE_USER", Value: ec.User},
 			corev1.EnvVar{Name: "GLOBAL_CLICKHOUSE_INITIAL_DATABASE", Value: ec.Database},
 		)
-		password := corev1.EnvVar{Name: "GLOBAL_CLICKHOUSE_PASSWORD"}
-		if ec.PasswordSecret != nil {
-			password.ValueFrom = &corev1.EnvVarSource{SecretKeyRef: ec.PasswordSecret}
-		} else {
-			password.Value = ec.Password
-		}
-		env = append(env, password)
+		env = append(env, envVarFromSecret("GLOBAL_CLICKHOUSE_PASSWORD", ec.PasswordSecret, ec.Password))
 	} else {
 		env = append(env,
 			corev1.EnvVar{
@@ -446,13 +438,7 @@ func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot, configEnvs Con
 	}
 
 	if p := cr.Spec.Postgres; p != nil {
-		password := corev1.EnvVar{Name: "PG_PASSWORD"}
-		if p.PasswordSecret != nil {
-			password.ValueFrom = &corev1.EnvVarSource{SecretKeyRef: p.PasswordSecret}
-		} else {
-			password.Value = p.Password
-		}
-		env = append(env, password)
+		env = append(env, envVarFromSecret("PG_PASSWORD", p.PasswordSecret, p.Password))
 		env = append(env, corev1.EnvVar{Name: "PG_CONNECTION_STRING", Value: postgresConnectionString(*p, "PG_PASSWORD")})
 	}
 
