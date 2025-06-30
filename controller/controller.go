@@ -355,6 +355,7 @@ func (r *CorootReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.PersistentVolumeClaim{}).
 		Owns(&corev1.Secret{}).
 		Owns(&networkingv1.Ingress{}).
+		Owns(&corev1.ConfigMap{}).
 		Complete(r)
 }
 

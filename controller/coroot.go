@@ -446,9 +446,7 @@ func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot, configEnvs Con
 		env = append(env, corev1.EnvVar{Name: "URL_BASE_PATH", Value: cr.Spec.Ingress.Path})
 	}
 
-	for name, selector := range configEnvs {
-		env = append(env, corev1.EnvVar{Name: name, ValueFrom: &corev1.EnvVarSource{SecretKeyRef: selector}})
-	}
+	env = append(env, configEnvs.List()...)
 
 	for _, e := range cr.Spec.Env {
 		env = append(env, e)
@@ -503,7 +501,7 @@ func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot, configEnvs Con
 							{Name: "http", ContainerPort: 8080, Protocol: corev1.ProtocolTCP},
 						},
 						VolumeMounts: []corev1.VolumeMount{
-							{Name: "config", MountPath: "/config"},
+							{Name: "config", MountPath: "/config", ReadOnly: true},
 							{Name: "data", MountPath: "/data"},
 						},
 						Resources: cr.Spec.Resources,

@@ -7,6 +7,7 @@ import (
 	"hash/crc32"
 	"math/big"
 	"reflect"
+	"sort"
 
 	"github.com/crewjam/saml/samlsp"
 	corev1 "k8s.io/api/core/v1"
@@ -129,4 +130,13 @@ func (ce ConfigEnvs) Add(selector *corev1.SecretKeySelector) string {
 	name := fmt.Sprintf("COROOT_CONFIG_SECRET_%X", hash)
 	ce[name] = selector
 	return fmt.Sprintf(`${%s}`, name)
+}
+
+func (ce ConfigEnvs) List() []corev1.EnvVar {
+	envs := make([]corev1.EnvVar, 0, len(ce))
+	for name, selector := range ce {
+		envs = append(envs, corev1.EnvVar{Name: name, ValueFrom: &corev1.EnvVarSource{SecretKeyRef: selector}})
+	}
+	sort.Slice(envs, func(i, j int) bool { return envs[i].Name < envs[j].Name })
+	return envs
 }
