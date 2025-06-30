@@ -153,8 +153,8 @@ func (r *CorootReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	if cr.Spec.ExternalClickhouse == nil {
-		r.CreateOrUpdateSecret(ctx, cr, "clickhouse", fmt.Sprintf("%s-clickhouse", cr.Name), "password", 16)
-
+		passwordSecret := clickhousePasswordSecret(cr)
+		r.CreateOrUpdateSecret(ctx, cr, passwordSecret.Name, []string{passwordSecret.Key}, 16, false)
 		r.CreateOrUpdateServiceAccount(ctx, cr, "clickhouse-keeper", sccNonroot)
 		r.CreateOrUpdateService(ctx, cr, r.clickhouseKeeperServiceHeadless(cr))
 		for _, pvc := range r.clickhouseKeeperPVCs(cr) {
@@ -230,28 +230,24 @@ func (r *CorootReconciler) GetSecret(ctx context.Context, cr *corootv1.Coroot, s
 	return string(data), nil
 }
 
-func (r *CorootReconciler) CreateOrUpdateSecret(ctx context.Context, cr *corootv1.Coroot, component, name, key string, length int) string {
-	s := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: cr.Namespace,
-			Labels:    Labels(cr, component),
-		},
+func (r *CorootReconciler) CreateOrUpdateSecret(ctx context.Context, cr *corootv1.Coroot, name string, keys []string, length int, retain bool) {
+	if len(keys) == 0 {
+		return
 	}
-	var data string
-	r.CreateOrUpdate(ctx, cr, s, false, false, func() error {
+	s := &corev1.Secret{}
+	s.Name = name
+	s.Namespace = cr.Namespace
+	r.CreateOrUpdate(ctx, cr, s, false, retain, func() error {
 		if s.Data == nil {
 			s.Data = map[string][]byte{}
 		}
-		if d, ok := s.Data[key]; ok {
-			data = string(d)
-		} else {
-			data = RandomString(length)
-			s.Data[key] = []byte(data)
+		for _, key := range keys {
+			if _, ok := s.Data[key]; !ok {
+				s.Data[key] = []byte(RandomString(length))
+			}
 		}
 		return nil
 	})
-	return data
 }
 
 func (r *CorootReconciler) CreateOrUpdateConfigMap(ctx context.Context, cr *corootv1.Coroot, cm *corev1.ConfigMap) {

@@ -13,6 +13,15 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
+func clickhousePasswordSecret(cr *corootv1.Coroot) *corev1.SecretKeySelector {
+	return &corev1.SecretKeySelector{
+		LocalObjectReference: corev1.LocalObjectReference{
+			Name: fmt.Sprintf("%s-clickhouse", cr.Name),
+		},
+		Key: "password",
+	}
+}
+
 func (r *CorootReconciler) clickhouseService(cr *corootv1.Coroot) *corev1.Service {
 	ls := Labels(cr, "clickhouse")
 	s := &corev1.Service{
@@ -204,9 +213,7 @@ func (r *CorootReconciler) clickhouseStatefulSets(cr *corootv1.Coroot) []*appsv1
 										FieldPath: "metadata.name",
 									},
 								}},
-								{Name: "CLICKHOUSE_PASSWORD", ValueFrom: &corev1.EnvVarSource{
-									SecretKeyRef: secretKeySelector(fmt.Sprintf("%s-clickhouse", cr.Name), "password"),
-								}},
+								{Name: "CLICKHOUSE_PASSWORD", ValueFrom: &corev1.EnvVarSource{SecretKeyRef: clickhousePasswordSecret(cr)}},
 							},
 							ReadinessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{

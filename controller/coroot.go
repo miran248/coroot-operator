@@ -48,10 +48,11 @@ func (r *CorootReconciler) validateCoroot(ctx context.Context, cr *corootv1.Coro
 		}
 	}
 
+	apiKeySecrets := map[string][]string{}
 	for _, p := range cr.Spec.Projects {
 		for i, k := range p.ApiKeys {
 			if k.KeySecret != nil {
-				r.CreateOrUpdateSecret(ctx, cr, "coroot", k.KeySecret.Name, k.KeySecret.Key, 32)
+				apiKeySecrets[k.KeySecret.Name] = append(apiKeySecrets[k.KeySecret.Name], k.KeySecret.Key)
 				p.ApiKeys[i].Key = configEnvs.Add(k.KeySecret)
 				p.ApiKeys[i].KeySecret = nil
 			}
@@ -134,6 +135,10 @@ func (r *CorootReconciler) validateCoroot(ctx context.Context, cr *corootv1.Coro
 				}
 			}
 		}
+	}
+
+	for name, keys := range apiKeySecrets {
+		r.CreateOrUpdateSecret(ctx, cr, name, keys, 32, true)
 	}
 
 	if ee := cr.Spec.EnterpriseEdition; ee != nil {
@@ -431,8 +436,7 @@ func (r *CorootReconciler) corootStatefulSet(cr *corootv1.Coroot, configEnvs Con
 				Value: fmt.Sprintf("%s-clickhouse.%s:9000", cr.Name, cr.Namespace),
 			},
 			corev1.EnvVar{Name: "GLOBAL_CLICKHOUSE_USER", Value: "default"},
-			corev1.EnvVar{Name: "GLOBAL_CLICKHOUSE_PASSWORD", ValueFrom: &corev1.EnvVarSource{
-				SecretKeyRef: secretKeySelector(fmt.Sprintf("%s-clickhouse", cr.Name), "password")}},
+			corev1.EnvVar{Name: "GLOBAL_CLICKHOUSE_PASSWORD", ValueFrom: &corev1.EnvVarSource{SecretKeyRef: clickhousePasswordSecret(cr)}},
 			corev1.EnvVar{Name: "GLOBAL_CLICKHOUSE_INITIAL_DATABASE", Value: "default"},
 		)
 	}

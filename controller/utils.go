@@ -109,15 +109,6 @@ func envVarFromSecret(name string, secret *corev1.SecretKeySelector, plainTextVa
 	return corev1.EnvVar{Name: name, ValueFrom: &corev1.EnvVarSource{SecretKeyRef: secret}}
 }
 
-func secretKeySelector(name, key string) *corev1.SecretKeySelector {
-	return &corev1.SecretKeySelector{
-		LocalObjectReference: corev1.LocalObjectReference{
-			Name: name,
-		},
-		Key: key,
-	}
-}
-
 func ValidateSamlIdentityProviderMetadata(metadata string) error {
 	_, err := samlsp.ParseMetadata([]byte(metadata))
 	return err
