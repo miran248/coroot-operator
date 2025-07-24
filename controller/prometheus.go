@@ -114,6 +114,7 @@ func (r *CorootReconciler) prometheusDeployment(cr *corootv1.Coroot) *appsv1.Dep
 						Command:         []string{"/bin/sh", "-c"},
 						Args:            []string{prometheusConfigCmd("/config/prometheus.yml", cr)},
 						VolumeMounts:    []corev1.VolumeMount{{Name: "config", MountPath: "/config"}},
+						Resources:       cr.Spec.Prometheus.Resources,
 					},
 				},
 				Containers: []corev1.Container{

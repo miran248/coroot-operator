@@ -186,6 +186,7 @@ func (r *CorootReconciler) clickhouseStatefulSets(cr *corootv1.Coroot) []*appsv1
 							Command:         []string{"/bin/sh", "-c"},
 							Args:            []string{clickhouseConfigCmd("/config/config.xml", cr, shards, int(replicas), clickhouseKeeperReplicas(cr))},
 							VolumeMounts:    []corev1.VolumeMount{{Name: "config", MountPath: "/config"}},
+							Resources:       cr.Spec.Clickhouse.Resources,
 						},
 					},
 					Containers: []corev1.Container{

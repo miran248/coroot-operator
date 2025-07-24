@@ -130,6 +130,7 @@ func (r *CorootReconciler) clickhouseKeeperStatefulSet(cr *corootv1.Coroot) *app
 						Command:         []string{"/bin/sh", "-c"},
 						Args:            []string{clickhouseKeeperConfigCmd("/config/config.xml", cr, int(replicas))},
 						VolumeMounts:    []corev1.VolumeMount{{Name: "config", MountPath: "/config"}},
+						Resources:       cr.Spec.Clickhouse.Keeper.Resources,
 					},
 				},
 				Containers: []corev1.Container{
