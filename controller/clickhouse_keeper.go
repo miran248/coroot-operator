@@ -200,6 +200,7 @@ var clickhouseKeeperConfigTemplate = template.Must(template.New("").Parse(`
     <level>information</level>
 </logger>
 <listen_host>::</listen_host>
+<listen_host>0.0.0.0</listen_host>
 <keeper_server>
     <tcp_port>9181</tcp_port>
     <server_id>SERVER_ID</server_id>

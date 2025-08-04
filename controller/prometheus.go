@@ -126,6 +126,7 @@ func (r *CorootReconciler) prometheusDeployment(cr *corootv1.Coroot) *appsv1.Dep
 						Args: []string{
 							"--config.file=/config/prometheus.yml",
 							"--web.listen-address=[::]:9090",
+							"--web.listen-address=0.0.0.0:9090",
 							"--storage.tsdb.path=/data",
 							"--storage.tsdb.retention.time=" + retention,
 							"--web.enable-remote-write-receiver",
